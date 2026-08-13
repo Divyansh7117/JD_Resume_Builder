@@ -44,8 +44,11 @@ Bondbrite — B2B Industrial Adhesives Platform (Freelance) | Next.js, MongoDB, 
 
 EDUCATION
 B.Tech – Computer Science Engineering (Data Science) | 2024 – 2028
-USICT, Guru Gobind Singh Indraprastha University · New Delhi
 `;
+
+console.log("=== RAW INPUT TEXT (character count: " + divyanshResumeText.length + ") ===");
+console.log(divyanshResumeText);
+console.log("=== END RAW INPUT ===");
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
