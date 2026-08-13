@@ -2,6 +2,65 @@ import { JDRequirements, ResumeData, TailoredOutput } from "../types";
 import { callLLM } from "./llm";
 import { validateNoFabrication } from "./validator";
 
+// Tech Synonym and Alias Mapping for High Accuracy Skill Matching
+const SKILL_ALIASES: Record<string, string[]> = {
+  react: ["react.js", "reactjs", "react"],
+  "react.js": ["react", "reactjs"],
+  node: ["node.js", "nodejs", "node"],
+  "node.js": ["node", "nodejs"],
+  vue: ["vue.js", "vuejs", "vue"],
+  "vue.js": ["vue", "vuejs"],
+  next: ["next.js", "nextjs", "next"],
+  "next.js": ["next", "nextjs"],
+  express: ["express.js", "expressjs", "express"],
+  "express.js": ["express", "expressjs"],
+  typescript: ["ts", "typescript"],
+  ts: ["typescript", "ts"],
+  javascript: ["js", "javascript"],
+  js: ["javascript", "js"],
+  postgresql: ["postgres", "postgresql"],
+  postgres: ["postgresql", "postgres"],
+  mongodb: ["mongo", "mongodb"],
+  mongo: ["mongodb", "mongo"],
+  kubernetes: ["k8s", "kubernetes"],
+  k8s: ["kubernetes", "k8s"],
+  aws: ["amazon web services", "aws"],
+  "amazon web services": ["aws"],
+  "rest api": ["rest apis", "restful api", "restful apis", "rest", "rest api integration"],
+  "rest apis": ["rest api", "restful api", "restful apis", "rest"],
+  "ci/cd": ["cicd", "continuous integration", "continuous deployment"],
+};
+
+function getSkillVariants(str: string): string[] {
+  const lower = str.toLowerCase().trim();
+  const variants = new Set<string>([lower]);
+
+  const parenMatch = lower.match(/^(.*?)\s*\((.*?)\)$/);
+  if (parenMatch) {
+    if (parenMatch[1].trim()) variants.add(parenMatch[1].trim());
+    if (parenMatch[2].trim()) variants.add(parenMatch[2].trim());
+  }
+
+  const fluffRegex = /\b(integration|integrations|optimization|optimizations|architecture|design|development|testing|framework|library|services|service|tools|tool|expertise|proficiency)\b/g;
+  const stripped = lower.replace(fluffRegex, "").trim();
+  if (stripped && stripped !== lower) {
+    variants.add(stripped);
+  }
+
+  Array.from(variants).forEach((v) => {
+    if (v.endsWith("s") && v.length > 3) variants.add(v.slice(0, -1));
+    if (v.endsWith("es") && v.length > 4) variants.add(v.slice(0, -2));
+  });
+
+  Array.from(variants).forEach((v) => {
+    if (SKILL_ALIASES[v]) {
+      SKILL_ALIASES[v].forEach((alias) => variants.add(alias));
+    }
+  });
+
+  return Array.from(variants);
+}
+
 export function computeSkillMatch(
   jd: JDRequirements,
   resume: ResumeData
@@ -10,9 +69,13 @@ export function computeSkillMatch(
   missing_skills: string[];
   match_score: number;
 } {
-  const allJDSkills = Array.from(
-    new Set([...(jd.must_have_skills || []), ...(jd.nice_to_have_skills || [])])
-  );
+  let rawJDSkills = [...(jd.must_have_skills || []), ...(jd.nice_to_have_skills || [])];
+
+  if (rawJDSkills.length === 0 && jd.keywords && jd.keywords.length > 0) {
+    rawJDSkills = jd.keywords;
+  }
+
+  const allJDSkills = Array.from(new Set(rawJDSkills));
 
   const resumeSkills = resume.sections?.skills || [];
   const experienceBullets = (resume.sections?.experience || []).flatMap(
@@ -25,18 +88,25 @@ export function computeSkillMatch(
     .join(" ")
     .toLowerCase();
 
+  const candidateSkillVariants = resumeSkills.flatMap((s) => getSkillVariants(s));
+
   const matched_skills: string[] = [];
   const missing_skills: string[] = [];
 
   for (const skill of allJDSkills) {
-    const skillLower = skill.toLowerCase();
+    const jdVariants = getSkillVariants(skill);
 
-    const inSkillsList = resumeSkills.some(
-      (s) => s.toLowerCase() === skillLower || s.toLowerCase().includes(skillLower)
+    const isMatchedInSkills = jdVariants.some((jdV) =>
+      candidateSkillVariants.some(
+        (candV) => candV === jdV || candV.includes(jdV) || jdV.includes(candV)
+      )
     );
-    const inBullets = allBulletsText.includes(skillLower);
 
-    if (inSkillsList || inBullets) {
+    const isMatchedInBullets = jdVariants.some((jdV) =>
+      allBulletsText.includes(jdV)
+    );
+
+    if (isMatchedInSkills || isMatchedInBullets) {
       matched_skills.push(skill);
     } else {
       missing_skills.push(skill);
@@ -47,7 +117,7 @@ export function computeSkillMatch(
   const match_score =
     totalJDSkills > 0
       ? Math.round((matched_skills.length / totalJDSkills) * 100)
-      : 100;
+      : 50;
 
   return {
     matched_skills,
@@ -70,7 +140,6 @@ function parseLLMResponse(responseText: string): LLMTailoredSection {
   try {
     return JSON.parse(responseText) as LLMTailoredSection;
   } catch (_initialError) {
-    // Clean common markdown code block wrappers (e.g. ```json ... ```)
     const cleanedText = responseText
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/i, "")
@@ -93,27 +162,31 @@ export async function generateTailoredContent(
 ): Promise<TailoredOutput> {
   const skillMatch = computeSkillMatch(jd, resume);
 
-  const basePrompt = `You are an expert resume tailoring assistant. Analyze the provided Job Description (JD) requirements and candidate Resume Data.
-Generate tailored experience bullets and a reordered skills list strictly based on the facts provided in the resume.
+  const basePrompt = `You are an expert ATS Resume Customization Engineer. Your goal is to tailor the candidate's resume so it MAXIMUM MATCHES the target Job Description (JD) while remaining 100% TRUTHFUL to the candidate's real experience.
 
 JOB DESCRIPTION REQUIREMENTS:
-${JSON.stringify(jd, null, 2)}
+- Target Role Title: ${jd.role_title}
+- Must-Have Skills: ${JSON.stringify(jd.must_have_skills || [])}
+- Nice-to-Have Skills: ${JSON.stringify(jd.nice_to_have_skills || [])}
+- Core Keywords: ${JSON.stringify(jd.keywords || [])}
+- Matched Candidate Skills: ${JSON.stringify(skillMatch.matched_skills)}
 
 CANDIDATE RESUME DATA:
 ${JSON.stringify(resume, null, 2)}
 
-INSTRUCTIONS:
-1. For each experience entry in the resume:
-   - Reorder and rephrase the EXISTING bullets to surface JD-relevant language and skills first.
-   - Preserve company, title, dates, and bullets count/structure.
-   - Do NOT invent, add, or exaggerate any company, title, date, metric, or achievement not already present in the original bullets. Rephrasing must stay strictly truthful to the original content.
-   - Do not add any adjective, qualifier, or descriptor (e.g. 'full-stack', 'advanced', 'optimized') that does not appear in the original bullet text. Only reorder words and combine existing phrasing.
-2. Reorder the skills list ("rewritten_skills") to surface JD-relevant skills first — do NOT add skills that were not in the original resume skills list.
+TAILORING INSTRUCTIONS (HIGH JD ALIGNMENT):
+1. FOR EXPERIENCE BULLETS:
+   - For each work experience entry, reorder the bullets so that bullets containing matched JD skills/keywords appear FIRST (#1 and #2).
+   - Rephrase the bullet statements to explicitly highlight the matched JD skills at the beginning of the sentence using strong action verbs (e.g. "Leveraged React and TypeScript to...", "Engineered REST APIs using Node.js for...").
+   - Maintain the EXACT bullet count, company name, title, and date range for each company entry.
+   - Do NOT invent any company, title, date range, metric, or achievement not present in the original resume.
 
-CRITICAL ETHICAL & TRUTHFULNESS REQUIREMENT:
-This is for a real job application. Fabricating experience is unacceptable and will make the output unusable. Only reorder and rephrase what already exists.
+2. FOR REORDERED SKILLS LIST ("rewritten_skills"):
+   - Place all JD Matched Skills (${JSON.stringify(skillMatch.matched_skills)}) at the VERY TOP of the array.
+   - Follow with all remaining candidate skills.
+   - Do NOT add any skill that was not originally present in the candidate's resume.
 
-Return ONLY a valid JSON object with no markdown formatting, no code fences, and no explanation text. It must strictly match this JSON shape:
+Return ONLY a valid JSON object with no markdown formatting, no code fences, and no explanation text matching this JSON shape:
 {
   "rewritten_experience": [
     {
