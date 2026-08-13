@@ -2,73 +2,84 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { extractJDRequirements } from "../lib/extractJD";
+import { parseResume } from "../lib/parseResume";
 import { generateTailoredContent } from "../lib/generateTailored";
-import { ResumeData } from "../types";
 
-const rawJD = `
-We are looking for a Full-Stack Engineer to join our dynamic web development team.
-The ideal candidate should have strong proficiency in TypeScript, React, Next.js, and Node.js with hands-on experience building REST APIs and GraphQL services.
-Experience with Tailwind CSS, React Native, and Docker / PostgreSQL is highly desirable.
-You will collaborate closely with cross-functional teams to design, develop, and maintain web applications.
-Candidates should possess strong problem-solving skills and 2+ years of relevant engineering experience.
+const nimbusLabsJD = `
+Nimbus Labs — Full Stack Engineer (Remote)
+Location: Remote | Experience: 2+ Years
+
+About the Role:
+Nimbus Labs is seeking a Full Stack Engineer to build and scale our cloud platform applications. You will take ownership of responsive frontends, scalable backends, and cloud API services.
+
+Key Requirements:
+- Strong proficiency in React, Next.js, Node.js, and TypeScript
+- Hands-on experience developing RESTful APIs, GraphQL, and WebSockets for real-time applications
+- Expertise in MongoDB, PostgreSQL, and modern database optimization
+- Familiarity with CI/CD deployment pipelines, Docker, and Agile development practices
+- Passion for performance optimization, UI/UX responsiveness, and clean architecture
 `;
 
-const sampleResume: ResumeData = {
-  sections: {
-    experience: [
-      {
-        company: "TechCorp Inc.",
-        title: "Senior Full-Stack Engineer",
-        dates: "Jan 2022 - Present",
-        bullets: [
-          "Architected and launched a real-time web platform using Next.js, React, and TypeScript, reducing page load times by 40%.",
-          "Built high-throughput RESTful APIs and MongoDB data pipelines using Node.js and Express (MERN stack) to serve over 100k daily active users.",
-          "Developed cross-platform mobile application modules using React Native and Redux Toolkit for seamless sync across iOS and Android."
-        ]
-      }
-    ],
-    projects: [
-      {
-        name: "TaskCraft - Mobile & Web Task Manager",
-        bullets: [
-          "Implemented end-to-end task synchronization using React Native for mobile, Next.js for web dashboard, and WebSocket connections via Node.js backend.",
-          "Integrated TypeScript strict mode across shared frontend-backend packages to ensure type safety and prevent runtime errors."
-        ]
-      }
-    ],
-    skills: [
-      "TypeScript",
-      "JavaScript",
-      "React.js",
-      "Next.js",
-      "Node.js",
-      "Express.js",
-      "MongoDB",
-      "React Native",
-      "Redux",
-      "HTML5",
-      "CSS3",
-      "Tailwind CSS",
-      "REST APIs",
-      "GraphQL",
-      "Git"
-    ]
-  }
-};
+const divyanshResumeText = `
+Divyansh Agarwal
+Full Stack Developer · React / Next.js / Node.js · Open to Opportunities
+New Delhi, India Email: divyanshagarwal.work7117@gmail.com Phone: +91-9205216028
+linkedin.com/in/divyansh-agarwal github.com/Divyansh7117 · divyansh-agarwal-portfolio.vercel.app
+
+PROFILE
+Full Stack Developer and B.Tech CSE (Data Science) student with production-level experience building and shipping real applications. Led end-to-end development of a social media platform (500+ live users), delivered a freelance B2B platform, and shipped a cross-platform React Native dating app — spanning JWT authentication, RESTful APIs, real-time WebSockets, optimized MongoDB pipelines, and responsive React/Next.js frontends. Currently expanding into Python, Machine Learning, and Deep Learning to build AI-native features into production software.
+
+TECHNICAL SKILLS
+Frontend: React.js, Next.js, React Native (Expo), HTML5, CSS3, TypeScript, Tailwind CSS, Responsive Design, SEO
+Backend: Node.js, Express.js, RESTful APIs, GraphQL, WebSockets, JWT Auth, MVC Architecture
+Databases: MongoDB, PostgreSQL, MySQL, SQL
+Languages: JavaScript, TypeScript, Python, C
+AI / Data: Python, Machine Learning, Deep Learning, Neural Networks, NLP
+Tools: Git, GitHub, VS Code, Postman, Cloudinary, Vercel, Nodemailer, Docker, CI/CD, Jest, Framer Motion
+
+EXPERIENCE
+Software Engineer Intern | Xoodrip | Oct 2025 – Present
+Building GrowIn Bharat — a live social media platform with 500+ real users
+• Engineered end-to-end full-stack architecture for GrowIn Bharat — owned feature development, CI/CD deployment pipeline, and ongoing maintenance as sole developer; conducted self-directed code reviews at every release.
+• Built secure JWT-based authentication with role-based authorization and protected routes, eliminating unauthorized access vulnerabilities across all API endpoints; validated across Chrome, Firefox, and Safari (cross-browser testing).
+• Designed and implemented scalable RESTful APIs and proxy APIs for posts, engagement (likes, comments), follows, polls, and user management — all serving real production traffic with efficient API fetching patterns.
+• Optimized MongoDB aggregation pipelines for a dynamic news feed; reduced initial feed payload from 120 to 10 posts via cursor-based pagination and infinite scroll, cutting average API response time to under 200ms; wrote unit tests (Jest) for critical API endpoints.
+• Applied media optimization across all image and video assets; improved Lighthouse Performance score from 62 to 88, achieving 1.8–2.2s initial page load.
+• Developed a comprehensive desktop feed UI and Admin Dashboard with dynamic KPI cards to monitor user growth, content volume, and engagement metrics in real time.
+• Structured backend using MVC architecture for long-term scalability; built reusable, fully responsive React/Next.js component library following Agile development practices.
+• Designed and developed the official Xoodrip company website (xoodrip.com) — optimized for performance, SEO, and responsive design across all devices and screen sizes.
+
+PROJECTS
+GrowIn Bharat — Social Media Platform | Next.js, Node.js, MongoDB, JWT, WebSockets
+• Live in production with 500+ real users; built end-to-end under Xoodrip internship.
+• Implemented infinite scroll with cursor-based pagination; reduced initial feed payload from 120 to 10 posts, cutting API response time to under 200ms and achieving Lighthouse Performance score of 88.
+
+Bondbrite — B2B Industrial Adhesives Platform (Freelance) | Next.js, MongoDB, Cloudinary, JWT, Nodemailer
+• Delivered a manufacturer-direct B2B platform: product catalogue, dealer onboarding, and inquiry workflows for an industrial adhesives client.
+• JWT-secured admin panel with role-based access; Cloudinary-backed image upload and CDN delivery for product catalogue.
+
+EDUCATION
+B.Tech – Computer Science Engineering (Data Science) | 2024 – 2028
+USICT, Guru Gobind Singh Indraprastha University · New Delhi
+`;
 
 async function main() {
   try {
-    console.log("Extracting JD requirements...");
-    const jdResult = await extractJDRequirements(rawJD);
-    console.log("Extracted JD Requirements:");
-    console.log(JSON.stringify(jdResult, null, 2));
+    console.log("Parsing Divyansh Agarwal Resume...");
+    const parsedResume = await parseResume(divyanshResumeText);
 
-    console.log("\nGenerating tailored content...");
-    const tailoredResult = await generateTailoredContent(jdResult, sampleResume);
-    console.log("Tailored Output Result:");
+    console.log("\nExtracting Nimbus Labs JD Requirements...");
+    const jdResult = await extractJDRequirements(nimbusLabsJD);
+
+    console.log("\nGenerating Tailored Content with Check 7 Validation...");
+    const tailoredResult = await generateTailoredContent(jdResult, parsedResume);
+
+    console.log("\n=======================================================");
+    console.log("TAILORED OUTPUT RESULT:");
+    console.log("=======================================================");
     console.log(JSON.stringify(tailoredResult, null, 2));
   } catch (err) {
-    console.error("Test execution failed:", err);
+    console.error("\nTest execution error:", err);
   }
 }
 

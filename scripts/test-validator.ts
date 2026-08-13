@@ -41,7 +41,7 @@ async function main() {
           title: "Senior Full-Stack Engineer",
           dates: "Jan 2022 - Present",
           bullets: [
-            "Architected web platform, increasing system throughput by 85%.", // Fabricated 85% metric
+            "Architected web platform using GraphQL, increasing system throughput by 85%.", // Fabricated 85% metric AND inserted GraphQL into bullet #1 where it wasn't originally
             "Built APIs serving over 100k daily active users."
           ]
         },
