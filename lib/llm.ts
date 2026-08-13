@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function callLLM(prompt: string, temperature: number = 0.2, retries = 4): Promise<string> {
+export async function callLLM(prompt: string, temperature: number = 0.2, retries = 6): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("LLM call failed: GEMINI_API_KEY is not defined in environment variables");
@@ -27,8 +27,9 @@ export async function callLLM(prompt: string, temperature: number = 0.2, retries
         errMessage.includes("Bad Gateway");
 
       if (isRateLimit && attempt < retries) {
-        console.warn(`[GEMINI RETRY] API limit/busy on attempt ${attempt}. Retrying in 7s...`);
-        await sleep(7000);
+        const backoffMs = attempt * 1500 + 1000;
+        console.warn(`[GEMINI RETRY] API limit/busy on attempt ${attempt}. Retrying in ${(backoffMs / 1000).toFixed(1)}s...`);
+        await sleep(backoffMs);
         continue;
       }
 

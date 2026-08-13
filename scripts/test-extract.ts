@@ -3,18 +3,30 @@ dotenv.config({ path: ".env.local" });
 
 import { extractJDRequirements } from "../lib/extractJD";
 
-const sampleJD = `
-We are looking for an Entry-Level Software Engineer to join our dynamic web development team.
-The ideal candidate should have strong proficiency in TypeScript, React, and Node.js with hands-on experience building REST APIs.
-Experience with Tailwind CSS, Next.js, and SQL databases like PostgreSQL is highly desirable.
-You will collaborate closely with cross-functional teams to design, develop, and maintain web applications.
-Candidates should possess strong problem-solving skills, excellent communication, and 0-2 years of relevant engineering experience or internship projects.
+const solaceHealthJD = `
+Solace Health — Frontend Engineer (Next.js)
+Location: Remote | Experience: 2+ Years
+
+About the Role:
+Solace Health is seeking a Frontend Engineer specializing in Next.js, React, and modern UI engineering to craft accessible, highly responsive web platforms for modern healthcare operations.
+
+Key Responsibilities & Requirements:
+- Deep expertise in React, Next.js, and TypeScript
+- Advanced styling with Tailwind CSS, responsive design, and cross-browser compatibility
+- Experience building clean REST API integrations
+- Performance optimization
+- Hands-on experience with Framer Motion / Motion for fluid UI micro-interactions
+
+Nice to Have:
+- Familiarity with WCAG accessibility standards and web accessibility compliance
+- Prior experience collaborating in Figma and designing component systems
+- Background in healthcare, fintech, or other regulated industries handling sensitive user data
 `;
 
 async function main() {
   try {
-    console.log("Extracting JD requirements...");
-    const result = await extractJDRequirements(sampleJD);
+    console.log("Extracting Solace Health JD requirements...");
+    const result = await extractJDRequirements(solaceHealthJD);
     console.log("Parsed Output:");
     console.log(JSON.stringify(result, null, 2));
   } catch (err) {

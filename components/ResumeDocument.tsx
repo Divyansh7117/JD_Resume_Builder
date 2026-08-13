@@ -7,8 +7,8 @@ export interface ResumeDocumentProps {
   summary?: string;
   experience: { company: string; title: string; dates: string; bullets: string[]; location?: string }[];
   projects?: { name: string; bullets: string[]; url?: string; techStack?: string }[];
-  education?: { institution: string; degree: string; dates: string; details?: string }[];
-  certifications?: string[];
+  education: { institution: string; degree: string; dates: string }[];
+  certifications: { name: string; issuer: string }[];
   skills: string[];
   additional?: string[];
   templateId?: string;
@@ -105,6 +105,11 @@ const academicStyles = StyleSheet.create({
 export default function ResumeDocument(props: ResumeDocumentProps) {
   const { name, contact, summary, experience, projects, education, certifications, skills, additional, templateId = "ats-standard" } = props;
 
+  const renderCertText = (cert: { name: string; issuer: string } | string) => {
+    if (typeof cert === "string") return cert;
+    return cert.issuer ? `${cert.name} — ${cert.issuer}` : cert.name;
+  };
+
   // Render 1: Modern Sidebar Layout (Two Column)
   if (templateId === "modern-sidebar") {
     return (
@@ -140,7 +145,9 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
               <View style={{ marginTop: 14 }}>
                 <Text style={sidebarStyles.sidebarSectionTitle}>CERTIFICATIONS</Text>
                 {certifications.map((cert, cIdx) => (
-                  <Text key={cIdx} style={{ fontSize: 7.5, color: "#E0E7FF", marginBottom: 3 }}>• {cert}</Text>
+                  <Text key={cIdx} style={{ fontSize: 7.5, color: "#E0E7FF", marginBottom: 3 }}>
+                    • {renderCertText(cert)}
+                  </Text>
                 ))}
               </View>
             )}
@@ -275,7 +282,9 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
           {certifications && certifications.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={darkStyles.sectionTitle}>&gt; CERTIFICATIONS</Text>
-              <Text style={{ fontSize: 8.5, color: "#E5E7EB" }}>{certifications.join(" • ")}</Text>
+              <Text style={{ fontSize: 8.5, color: "#E5E7EB" }}>
+                {certifications.map(renderCertText).join(" • ")}
+              </Text>
             </View>
           ) : null}
         </Page>
@@ -358,7 +367,9 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
           {certifications && certifications.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={executiveStyles.sectionTitle}>CERTIFICATIONS</Text>
-              <Text style={{ fontSize: 9, color: "#374151" }}>{certifications.join(" • ")}</Text>
+              <Text style={{ fontSize: 9, color: "#374151" }}>
+                {certifications.map(renderCertText).join(" • ")}
+              </Text>
             </View>
           ) : null}
         </Page>
@@ -441,7 +452,9 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
           {certifications && certifications.length > 0 ? (
             <View style={{ marginBottom: 8 }}>
               <Text style={compactStyles.sectionTitle}>CERTIFICATIONS</Text>
-              <Text style={{ fontSize: 8 }}>{certifications.join(" • ")}</Text>
+              <Text style={{ fontSize: 8 }}>
+                {certifications.map(renderCertText).join(" • ")}
+              </Text>
             </View>
           ) : null}
         </Page>
@@ -524,7 +537,9 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
           {certifications && certifications.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={academicStyles.sectionTitle}>CERTIFICATIONS</Text>
-              <Text style={{ fontSize: 9 }}>{certifications.join(" • ")}</Text>
+              <Text style={{ fontSize: 9 }}>
+                {certifications.map(renderCertText).join(" • ")}
+              </Text>
             </View>
           ) : null}
         </Page>
@@ -610,19 +625,10 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             {education.map((edu, idx) => (
               <View key={idx} style={{ marginBottom: 4 }} wrap={false}>
                 <View style={standardStyles.entryHeader}>
-                  <Text style={standardStyles.entryTitleCompany}>
-                    {edu.degree} — {edu.institution}
-                  </Text>
+                  <Text style={standardStyles.entryTitleCompany}>{edu.degree}</Text>
                   <Text style={standardStyles.entryDates}>{edu.dates}</Text>
                 </View>
-                {edu.details && (
-                  <View style={{ marginTop: 2, marginBottom: 2 }}>
-                    <View style={standardStyles.bulletItem}>
-                      <Text style={standardStyles.bulletPoint}>•</Text>
-                      <Text style={standardStyles.bulletText}>{edu.details}</Text>
-                    </View>
-                  </View>
-                )}
+                <Text style={{ fontSize: 9.5, color: "#374151", marginTop: 1 }}>{edu.institution}</Text>
               </View>
             ))}
           </View>
@@ -630,13 +636,12 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
 
         {certifications && certifications.length > 0 ? (
           <View style={standardStyles.section}>
-            <Text style={standardStyles.sectionTitle}>CERTIFICATIONS & LEARNING</Text>
+            <Text style={standardStyles.sectionTitle}>CERTIFICATIONS</Text>
             <View style={{ marginTop: 2, marginBottom: 2 }}>
               {certifications.map((cert, cIdx) => (
-                <View key={cIdx} style={standardStyles.bulletItem}>
-                  <Text style={standardStyles.bulletPoint}>•</Text>
-                  <Text style={standardStyles.bulletText}>{cert}</Text>
-                </View>
+                <Text key={cIdx} style={{ fontSize: 9.5, color: "#374151", marginBottom: 2 }}>
+                  {renderCertText(cert)}
+                </Text>
               ))}
             </View>
           </View>

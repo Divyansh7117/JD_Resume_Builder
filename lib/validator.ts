@@ -116,6 +116,69 @@ export function validateNoFabrication(
     }
   }
 
+  // 8. Check for skill insertion into rewritten_summary where they didn't appear in original summary
+  if (output.rewritten_summary && original.summary && original.summary.trim().length > 0) {
+    const summaryLower = output.rewritten_summary.toLowerCase();
+    const origSummaryLower = original.summary.toLowerCase();
+
+    for (const skillTerm of origSkills) {
+      const termLower = skillTerm.toLowerCase().trim();
+      if (termLower.length <= 1) continue;
+
+      const escaped = termLower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const startsWithWordChar = /^\w/.test(termLower);
+      const endsWithWordChar = /\w$/.test(termLower);
+      const prefix = startsWithWordChar ? "\\b" : "";
+      const suffix = endsWithWordChar ? "\\b" : "";
+      const regex = new RegExp(`${prefix}${escaped}${suffix}`, "i");
+
+      if (regex.test(summaryLower) && !regex.test(origSummaryLower)) {
+        issues.push(
+          `Inserted skill '${skillTerm}' into rewritten summary where it did not appear in original summary text — even though it's listed elsewhere on the resume, do not add terms to summary not present in the original summary text.`
+        );
+      }
+    }
+  }
+
+  // 9. Check for candidate professional title and parenthetical specialization integrity
+  if (output.rewritten_summary && original.summary) {
+    const getFirstSentenceSegment = (text: string) => {
+      const match = text.split(/[.—\n]/)[0];
+      return (match || text).trim();
+    };
+
+    const origFirstSeg = getFirstSentenceSegment(original.summary);
+    const rewFirstSeg = getFirstSentenceSegment(output.rewritten_summary);
+
+    const origFirstLower = origFirstSeg.toLowerCase();
+    const rewFirstLower = rewFirstSeg.toLowerCase();
+
+    // Key professional role nouns to check for changes
+    const roleNouns = ["developer", "engineer", "architect", "analyst", "manager", "specialist", "consultant", "lead", "designer", "administrator"];
+
+    for (const noun of roleNouns) {
+      const regex = new RegExp(`\\b${noun}\\b`, "i");
+      if (regex.test(rewFirstLower) && !regex.test(origFirstLower)) {
+        issues.push(
+          `Rewritten summary changed the candidate's stated professional title from the original — this is not a truthful rephrasing.`
+        );
+        break;
+      }
+    }
+
+    // Check parenthetical specializations (e.g. "(Data Science)") in original first sentence
+    const parenRegex = /\(([^)]+)\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = parenRegex.exec(origFirstSeg)) !== null) {
+      const parenContent = match[1].toLowerCase().trim();
+      if (!rewFirstLower.includes(parenContent)) {
+        issues.push(
+          `Rewritten summary altered or dropped the candidate's parenthetical specialization '(${match[1]})' from the original — this is not a truthful rephrasing.`
+        );
+      }
+    }
+  }
+
   return {
     valid: issues.length === 0,
     issues,

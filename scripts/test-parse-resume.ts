@@ -62,6 +62,12 @@ async function testResume(label: string, text: string) {
 
   const parsed = await parseResume(text);
 
+  console.log("\nCONTACT INFO EXTRACTED:");
+  console.log(JSON.stringify(parsed.contact, null, 2));
+
+  console.log("\nSUMMARY EXTRACTED:");
+  console.log(parsed.summary);
+
   console.log("\nFULL EXTRACTED BULLETS FOR EXPERIENCE ENTRIES:");
   (parsed.sections.experience || []).forEach((exp, idx) => {
     console.log(`\n[Company ${idx + 1}] ${exp.company} (${exp.title} | ${exp.dates})`);
@@ -77,6 +83,12 @@ async function testResume(label: string, text: string) {
   });
 
   console.log(`\nSkills Extracted (${parsed.sections.skills?.length || 0}):`, parsed.sections.skills);
+
+  console.log("\nEDUCATION EXTRACTED:");
+  console.log(JSON.stringify(parsed.sections.education, null, 2));
+
+  console.log("\nCERTIFICATIONS EXTRACTED:");
+  console.log(JSON.stringify(parsed.sections.certifications, null, 2));
 }
 
 async function main() {

@@ -35,6 +35,7 @@ async function main() {
       matched_skills: ["TypeScript", "Next.js"],
       missing_skills: ["Docker"],
       match_score: 80,
+      rewritten_summary: "Experienced Full-Stack Developer specializing in MERN stack, Python, and Docker.", // Fabricated Python and Docker into summary
       rewritten_experience: [
         {
           company: "TechCorp Inc.",

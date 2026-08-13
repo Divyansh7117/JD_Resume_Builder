@@ -145,21 +145,27 @@ export default function AppPage() {
   }
 
   async function generatePdfBlobUrl(tailored: TailoredOutput, originalResume: ResumeData, tmplId: string) {
-    const lines = resumeText.split("\n").filter((l) => l.trim().length > 0);
-    const name = lines[0]?.trim() || "Your Name";
-    const contact = lines[1]?.trim() || "";
+    const contactInfo = originalResume.contact;
+    const name = contactInfo?.name || "Your Name";
+    const contactParts = [
+      contactInfo?.email,
+      contactInfo?.phone,
+      contactInfo?.location,
+      ...(contactInfo?.links || []),
+    ].filter(Boolean);
+
+    const contactStr = contactParts.join(" | ");
 
     const doc = (
       <ResumeDocument
         name={name}
-        contact={contact}
-        summary={originalResume.sections.summary}
+        contact={contactStr}
+        summary={tailored.rewritten_summary}
         experience={tailored.rewritten_experience}
         projects={originalResume.sections.projects}
         education={originalResume.sections.education}
         certifications={originalResume.sections.certifications}
         skills={tailored.rewritten_skills}
-        additional={originalResume.sections.additional}
         templateId={tmplId}
       />
     );
@@ -838,11 +844,7 @@ export default function AppPage() {
                       <div key={idx} className="mb-4 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
                         <div className="flex items-baseline justify-between mb-1">
                           <span className="font-heading font-semibold text-sm text-[#0F1419]">{proj.name}</span>
-                          {proj.url && <span className="font-label text-xs text-[#3654FF]">{proj.url}</span>}
                         </div>
-                        {proj.techStack && (
-                          <div className="text-xs text-[#6B7280] italic mb-2">Tech: {proj.techStack}</div>
-                        )}
                         <ul className="space-y-1">
                           {proj.bullets.map((bullet, bIdx) => (
                             <li key={bIdx} className="text-sm pl-4 relative text-[#374151]">
@@ -868,7 +870,6 @@ export default function AppPage() {
                           <span className="font-heading font-semibold text-sm text-[#0F1419]">{edu.degree} — {edu.institution}</span>
                           <span className="font-label text-xs text-[#6B7280]">{edu.dates}</span>
                         </div>
-                        {edu.details && <p className="text-xs text-[#4B5563] mt-1">{edu.details}</p>}
                       </div>
                     ))}
                   </div>
@@ -883,23 +884,7 @@ export default function AppPage() {
                     <ul className="space-y-1.5 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
                       {result.originalResume.sections.certifications.map((cert, idx) => (
                         <li key={idx} className="text-sm text-[#374151] flex items-center gap-2">
-                          <span className="text-[#1F9D6B]">✓</span> {cert}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Additional Information Section */}
-                {result.originalResume.sections.additional && result.originalResume.sections.additional.length > 0 && (
-                  <div className="mt-8">
-                    <div className="mb-3">
-                      <span className="section-label font-bold text-[#0F1419]">Additional Information</span>
-                    </div>
-                    <ul className="space-y-1.5 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
-                      {result.originalResume.sections.additional.map((item, idx) => (
-                        <li key={idx} className="text-sm text-[#374151] flex items-center gap-2">
-                          <span className="text-[#3654FF]">•</span> {item}
+                          <span className="text-[#1F9D6B]">✓</span> {cert.issuer ? `${cert.name} — ${cert.issuer}` : cert.name}
                         </li>
                       ))}
                     </ul>

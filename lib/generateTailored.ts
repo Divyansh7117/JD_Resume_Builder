@@ -31,6 +31,21 @@ const SKILL_ALIASES: Record<string, string[]> = {
   "ci/cd": ["cicd", "continuous integration", "continuous deployment"],
 };
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildWordBoundaryRegex(skillStr: string): RegExp {
+  const escaped = escapeRegex(skillStr);
+  const startsWithWordChar = /^\w/.test(skillStr);
+  const endsWithWordChar = /\w$/.test(skillStr);
+
+  const prefix = startsWithWordChar ? "\\b" : "";
+  const suffix = endsWithWordChar ? "\\b" : "";
+
+  return new RegExp(`${prefix}${escaped}${suffix}`, "i");
+}
+
 function getSkillVariants(str: string): string[] {
   const lower = str.toLowerCase().trim();
   const variants = new Set<string>([lower]);
@@ -41,16 +56,11 @@ function getSkillVariants(str: string): string[] {
     if (parenMatch[2].trim()) variants.add(parenMatch[2].trim());
   }
 
-  const fluffRegex = /\b(integration|integrations|optimization|optimizations|architecture|design|development|testing|framework|library|services|service|tools|tool|expertise|proficiency)\b/g;
+  const fluffRegex = /\b(integration|integrations|optimization|optimizations|architecture|design|development|testing|framework|library|services|service|tools|tool|expertise|proficiency|environments|environment)\b/gi;
   const stripped = lower.replace(fluffRegex, "").trim();
-  if (stripped && stripped !== lower) {
+  if (stripped && stripped !== lower && stripped.length > 0) {
     variants.add(stripped);
   }
-
-  Array.from(variants).forEach((v) => {
-    if (v.endsWith("s") && v.length > 3) variants.add(v.slice(0, -1));
-    if (v.endsWith("es") && v.length > 4) variants.add(v.slice(0, -2));
-  });
 
   Array.from(variants).forEach((v) => {
     if (SKILL_ALIASES[v]) {
@@ -88,27 +98,59 @@ export function computeSkillMatch(
     .join(" ")
     .toLowerCase();
 
-  const candidateSkillVariants = resumeSkills.flatMap((s) => getSkillVariants(s));
+  const candidateSkillEntries = resumeSkills.map((s) => ({
+    original: s,
+    lower: s.toLowerCase().trim(),
+    variants: getSkillVariants(s),
+  }));
 
   const matched_skills: string[] = [];
   const missing_skills: string[] = [];
 
+  console.log("\n--- COMPUTE SKILL MATCH DETAILED LOG ---");
   for (const skill of allJDSkills) {
     const jdVariants = getSkillVariants(skill);
 
-    const isMatchedInSkills = jdVariants.some((jdV) =>
-      candidateSkillVariants.some(
-        (candV) => candV === jdV || candV.includes(jdV) || jdV.includes(candV)
-      )
-    );
+    let matchReason: string | null = null;
 
-    const isMatchedInBullets = jdVariants.some((jdV) =>
-      allBulletsText.includes(jdV)
-    );
+    for (const jdV of jdVariants) {
+      const isShortSkill = jdV.length <= 3;
 
-    if (isMatchedInSkills || isMatchedInBullets) {
+      // 1. Check against candidate skills
+      for (const candItem of candidateSkillEntries) {
+        for (const candV of candItem.variants) {
+          if (candV === jdV) {
+            matchReason = `Exact match against Candidate Skill "${candItem.original}" (variant: "${candV}")`;
+            break;
+          }
+
+          if (!isShortSkill) {
+            const regex = buildWordBoundaryRegex(jdV);
+            if (regex.test(candV)) {
+              matchReason = `Word-boundary regex /${regex.source}/i matched Candidate Skill "${candItem.original}" (variant: "${candV}")`;
+              break;
+            }
+          }
+        }
+        if (matchReason) break;
+      }
+      if (matchReason) break;
+
+      // 2. Check against resume bullets (only for skills > 3 characters)
+      if (!isShortSkill) {
+        const regex = buildWordBoundaryRegex(jdV);
+        if (regex.test(allBulletsText)) {
+          matchReason = `Word-boundary regex /${regex.source}/i matched Resume Bullets Text (JD Variant: "${jdV}")`;
+          break;
+        }
+      }
+    }
+
+    if (matchReason) {
+      console.log(`[MATCHED] JD Skill: "${skill}" -> ${matchReason}`);
       matched_skills.push(skill);
     } else {
+      console.log(`[MISSING] JD Skill: "${skill}" -> No match found in candidate skills or bullets`);
       missing_skills.push(skill);
     }
   }
@@ -127,6 +169,7 @@ export function computeSkillMatch(
 }
 
 interface LLMTailoredSection {
+  rewritten_summary: string;
   rewritten_experience: {
     company: string;
     title: string;
@@ -175,19 +218,25 @@ CANDIDATE RESUME DATA:
 ${JSON.stringify(resume, null, 2)}
 
 TAILORING INSTRUCTIONS (HIGH JD ALIGNMENT):
-1. FOR EXPERIENCE BULLETS:
+1. FOR SUMMARY ("rewritten_summary"):
+   - Lightly rephrase the ORIGINAL summary (${JSON.stringify(resume.summary)}) to emphasize alignment with the JD's role_title (${jd.role_title}) and top must_have_skills.
+   - Do not change the candidate's stated professional title or identity (e.g. 'Full Stack Developer') to match the job title in the JD, even if it seems like a better fit. You may rephrase supporting details and emphasis, but the core professional identity stated in the original summary must remain unchanged. Also do not drop or alter any parenthetical specialization (e.g. '(Data Science)') that appears in the original.
+   - Only reorder, trim, or lightly rephrase words and claims already present in the original summary. Do not add any skill, technology, or achievement not already mentioned in the original summary text, even if it appears elsewhere on the resume.
+
+2. FOR EXPERIENCE BULLETS ("rewritten_experience"):
    - For each work experience entry, reorder the bullets so that bullets containing matched JD skills/keywords appear FIRST (#1 and #2).
    - Each rewritten bullet may ONLY reorder, trim, or lightly rephrase the words already present in that specific original bullet. Do not pull in any skill, tool, or technology name from elsewhere in the resume into a bullet where it did not originally appear, even if that skill is truthfully listed on the resume elsewhere.
    - Maintain the EXACT bullet count, company name, title, and date range for each company entry. DO NOT SKIP ANY COMPANY OR EXPERIENCE ENTRY.
    - Do NOT invent any company, title, date range, metric, or achievement not present in the original resume.
 
-2. FOR REORDERED SKILLS LIST ("rewritten_skills"):
+3. FOR REORDERED SKILLS LIST ("rewritten_skills"):
    - Place all JD Matched Skills (${JSON.stringify(skillMatch.matched_skills)}) at the VERY TOP of the array.
    - Follow with all remaining candidate skills.
    - Do NOT add any skill that was not originally present in the candidate's resume.
 
 Return ONLY a valid JSON object with no markdown formatting, no code fences, and no explanation text matching this JSON shape:
 {
+  "rewritten_summary": "string",
   "rewritten_experience": [
     {
       "company": "string",
@@ -207,6 +256,7 @@ Return ONLY a valid JSON object with no markdown formatting, no code fences, and
     matched_skills: skillMatch.matched_skills,
     missing_skills: skillMatch.missing_skills,
     match_score: skillMatch.match_score,
+    rewritten_summary: llmParsed.rewritten_summary || resume.summary,
     rewritten_experience: llmParsed.rewritten_experience,
     rewritten_skills: llmParsed.rewritten_skills,
   };
@@ -250,6 +300,7 @@ Fix these by using ONLY the exact facts, numbers, and skills from the original r
     matched_skills: skillMatch.matched_skills,
     missing_skills: skillMatch.missing_skills,
     match_score: skillMatch.match_score,
+    rewritten_summary: llmParsedRetry.rewritten_summary || resume.summary,
     rewritten_experience: llmParsedRetry.rewritten_experience,
     rewritten_skills: llmParsedRetry.rewritten_skills,
   };

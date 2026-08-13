@@ -5,19 +5,19 @@ import { extractJDRequirements } from "../lib/extractJD";
 import { parseResume } from "../lib/parseResume";
 import { generateTailoredContent } from "../lib/generateTailored";
 
-const nimbusLabsJD = `
-Nimbus Labs — Full Stack Engineer (Remote)
+const vertoSystemsJD = `
+Verto Systems — Backend Engineer (Node.js)
 Location: Remote | Experience: 2+ Years
 
 About the Role:
-Nimbus Labs is seeking a Full Stack Engineer to build and scale our cloud platform applications. You will take ownership of responsive frontends, scalable backends, and cloud API services.
+Verto Systems is seeking a Backend Engineer to build high-performance microservices, real-time messaging, and data infrastructure.
 
-Key Requirements:
-- Strong proficiency in React, Next.js, Node.js, and TypeScript
-- Hands-on experience developing RESTful APIs, GraphQL, and WebSockets for real-time applications
-- Expertise in MongoDB, PostgreSQL, and modern database optimization
-- Familiarity with CI/CD deployment pipelines, Docker, and Agile development practices
-- Passion for performance optimization, UI/UX responsiveness, and clean architecture
+Requirements:
+- Strong proficiency in Node.js, Express.js, and TypeScript
+- Experience building RESTful APIs, WebSockets, and gRPC services
+- Hands-on experience with MongoDB, PostgreSQL, and Redis
+- Knowledge of Docker, CI/CD, and Linux/CLI environments
+- Experience with microservices architecture and cloud infrastructure
 `;
 
 const divyanshResumeText = `Divyansh Agarwal
@@ -66,8 +66,8 @@ async function main() {
     console.log("\nParsing Divyansh Agarwal Resume...");
     const parsedResume = await parseResume(divyanshResumeText);
 
-    console.log("\nExtracting Nimbus Labs JD Requirements...");
-    const jdResult = await extractJDRequirements(nimbusLabsJD);
+    console.log("\nExtracting Verto Systems JD Requirements...");
+    const jdResult = await extractJDRequirements(vertoSystemsJD);
 
     console.log("\nGenerating Tailored Content with Check 7 Validation...");
     const tailoredResult = await generateTailoredContent(jdResult, parsedResume);

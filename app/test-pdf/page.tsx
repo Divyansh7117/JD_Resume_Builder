@@ -13,46 +13,71 @@ const PDFViewer = dynamic(
 );
 
 const sampleData = {
-  name: "Alex Rivera",
-  contact: "alex.rivera@example.com | (555) 123-4567 | San Francisco, CA | github.com/alexrivera",
-  summary: "Experienced Full-Stack Developer specializing in MERN stack, Next.js, TypeScript, and React Native.",
+  name: "Divyansh Agarwal",
+  contact: "divyanshagarwal.work7117@gmail.com | +91-9205216028 | New Delhi, India | linkedin.com/in/divyansh-agarwal7117 | github.com/Divyansh7117 | divyansh-agarwal-portfolio.vercel.app",
+  summary: "Full Stack Developer and B.Tech CSE (Data Science) student with production-level experience shipping real applications — led end-to-end development of a social platform with 500+ live users, delivered a freelance B2B platform, and built a cross-platform React Native dating app spanning JWT authentication, REST APIs, real-time WebSockets, and optimized MongoDB pipelines. Currently expanding into Python, Machine Learning, and Deep Learning to build AI-native features into production software.",
   experience: [
     {
-      company: "TechCorp Inc.",
-      title: "Senior Full-Stack Engineer",
-      dates: "Jan 2022 - Present",
+      company: "Xoodrip",
+      title: "Software Engineer Intern",
+      dates: "Oct 2025 – Present",
       bullets: [
-        "Architected and launched a real-time web platform using Next.js, React, and TypeScript, reducing page load times by 40%.",
-        "Built high-throughput RESTful APIs and MongoDB data pipelines using Node.js and Express (MERN stack) to serve over 100k daily active users.",
-        "Developed cross-platform mobile application modules using React Native and Redux Toolkit for seamless sync across iOS and Android.",
+        "Engineered end-to-end full-stack architecture as sole developer; owned feature development, CI/CD deployment pipeline, and release reviews.",
+        "Optimized MongoDB aggregation pipelines for the news feed; cut initial payload from 120 to 10 posts via cursor-based pagination and infinite scroll, reducing API response time to under 200ms.",
+        "Built secure JWT-based authentication with role-based authorization, eliminating unauthorized access across all API endpoints; validated cross-browser (Chrome, Firefox, Safari).",
+        "Improved Lighthouse Performance score from 62 to 88 through media optimization, achieving 1.8–2.2s initial page loads.",
+        "Built a desktop feed UI and Admin Dashboard with real-time KPI cards for user growth, content volume, and engagement metrics.",
+        "Designed and developed the official Xoodrip company website (xoodrip.com), optimized for performance, SEO, and responsiveness.",
       ],
     },
   ],
   projects: [
     {
-      name: "TaskCraft - Mobile & Web Task Manager",
+      name: "GrowIn Bharat — Social Media Platform",
       bullets: [
-        "Implemented end-to-end task synchronization using React Native for mobile, Next.js for web dashboard, and WebSocket connections via Node.js backend.",
-        "Integrated TypeScript strict mode across shared frontend-backend packages to ensure type safety and prevent runtime errors.",
+        "Live in production with 500+ real users; implemented infinite scroll with cursor-based pagination, cutting API response time to under 200ms and reaching a Lighthouse score of 88.",
+      ],
+    },
+    {
+      name: "Bondbrite — B2B Industrial Adhesives Platform (Freelance)",
+      bullets: [
+        "Delivered a manufacturer-direct B2B platform with product catalogue, dealer onboarding, and GST-validated inquiry workflows; JWT-secured admin panel with Cloudinary-backed CDN delivery.",
+      ],
+    },
+    {
+      name: "Gostart — Dating App (Personal Project)",
+      bullets: [
+        "Built real-time chat over native WebSockets with optimistic updates and REST fallback; engineered a bidirectional match engine with a custom dual-thumb age-range slider and credit-gated conversations.",
       ],
     },
   ],
   skills: [
-    "TypeScript",
-    "JavaScript",
     "React.js",
     "Next.js",
     "Node.js",
-    "Express.js",
-    "MongoDB",
-    "React Native",
-    "Redux",
-    "HTML5",
-    "CSS3",
-    "Tailwind CSS",
-    "REST APIs",
+    "TypeScript",
+    "RESTful APIs",
     "GraphQL",
-    "Git",
+    "WebSockets",
+    "MongoDB",
+    "PostgreSQL",
+    "CI/CD",
+    "Docker",
+    "React Native (Expo)",
+    "Tailwind CSS",
+  ],
+  education: [
+    {
+      institution: "USICT, Guru Gobind Singh Indraprastha University",
+      degree: "B.Tech – Computer Science Engineering (Data Science)",
+      dates: "2024 – 2028",
+    },
+  ],
+  certifications: [
+    {
+      name: "The Complete JavaScript Course 2025",
+      issuer: "Udemy",
+    },
   ],
 };
 

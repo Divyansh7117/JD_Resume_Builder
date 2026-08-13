@@ -6,27 +6,47 @@ export interface JDRequirements {
   seniority_signal: string; // e.g. "entry-level", "2+ yrs"
 }
 
+export interface ContactInfo {
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  links: string[]; // LinkedIn, GitHub, portfolio URLs, etc. — whatever's present
+}
+
+export interface EducationEntry {
+  institution: string;
+  degree: string;
+  dates: string;
+}
+
+export interface CertificationEntry {
+  name: string;
+  issuer: string;
+}
+
 export interface ResumeData {
+  contact: ContactInfo;
+  summary: string;
   sections: {
-    summary?: string;
-    experience: { company: string; title: string; bullets: string[]; dates: string; location?: string }[];
-    projects: { name: string; bullets: string[]; url?: string; techStack?: string }[];
-    education?: { institution: string; degree: string; dates: string; details?: string }[];
-    certifications?: string[];
+    experience: { company: string; title: string; bullets: string[]; dates: string }[];
+    projects: { name: string; bullets: string[] }[];
     skills: string[];
-    additional?: string[];
+    education: EducationEntry[];
+    certifications: CertificationEntry[];
   };
 }
 
 export interface TailoredOutput {
   matched_skills: string[];
-  missing_skills: string[]; // gap analysis, shown to the user
-  match_score: number; // 0-100
+  missing_skills: string[];
+  match_score: number;
+  rewritten_summary: string;   // NEW — a JD-tailored version of the summary
   rewritten_experience: {
     company: string;
     title: string;
     dates: string;
-    bullets: string[]; // reordered/reworded, same underlying facts
+    bullets: string[];
   }[];
-  rewritten_skills: string[]; // reordered to surface JD-relevant ones first
+  rewritten_skills: string[];
 }

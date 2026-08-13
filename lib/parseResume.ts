@@ -1,4 +1,4 @@
-import { ResumeData } from "../types";
+import { ResumeData, ContactInfo, EducationEntry, CertificationEntry } from "../types";
 import { callLLM } from "./llm";
 
 export interface SplitSections {
@@ -12,6 +12,78 @@ export interface SplitSections {
 }
 
 const BULLET_MARKER_REGEX = /^[\s\t]*[•●\-\*▪○▸\+–—\>]\s*|^[\s\t]*\d+[\.\)]\s+/;
+
+/**
+ * Deterministically extracts contact info using regex for email, phone, links, and name from top line.
+ * Location is passed in after a scoped top-5-line LLM check.
+ */
+export function extractContactInfo(resumeText: string, location: string): ContactInfo {
+  const lines = resumeText.split("\n");
+  const firstNonEmptyLine = lines.find((l) => l.trim().length > 0)?.trim() || "";
+  const name = firstNonEmptyLine;
+
+  // Email regex
+  const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  const email = emailMatch ? emailMatch[0] : "";
+
+  // Phone regex (matches formats like +91-XXXXXXXXXX, (XXX) XXX-XXXX, XXX-XXX-XXXX, 10+ digits)
+  const phoneMatch = resumeText.match(/(?:\+\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}[-.\s]?\d{3,5}/);
+  const phone = phoneMatch ? phoneMatch[0].trim() : "";
+
+  // Header text block (lines before first section header or top 10 lines)
+  const headerLines: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (
+      trimmed.length > 2 &&
+      trimmed.length <= 45 &&
+      /^(summary|profile|experience|work experience|projects|skills|education|certifications)$/i.test(
+        trimmed.replace(/^[\#\*\-\s\>]+/, "").replace(/[\:\#\*\-\>\=]+$/, "").trim()
+      )
+    ) {
+      break;
+    }
+    headerLines.push(line);
+  }
+  const headerText = headerLines.length > 0 ? headerLines.join("\n") : lines.slice(0, 10).join("\n");
+  const headerTextNoEmail = headerText.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "");
+
+  // Links regex: collect ALL matches into the links array (excluding email & tech stack terms)
+  const linkRegex = /(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s•|,\n\r\)\>]*)?/gi;
+  const rawMatches = headerTextNoEmail.match(linkRegex) || [];
+
+  const IGNORED_LINK_PATTERNS = [
+    /\.js$/i,
+    /^(b|m)\.tech$/i,
+    /^(b|m)\.s\.$/i,
+    /^(b|m)\.a\.$/i,
+    /gmail\.com$/i,
+    /yahoo\.com$/i,
+    /hotmail\.com$/i,
+    /outlook\.com$/i,
+    /icloud\.com$/i,
+  ];
+
+  const linksSet = new Set<string>();
+  for (const rawMatch of rawMatches) {
+    let clean = rawMatch.trim();
+    clean = clean.replace(/^[\(\<\[]+/, "").replace(/[\)\>\.\,]+$/, "");
+    if (clean.includes("@")) continue; // Skip email addresses
+    if (clean.length < 4) continue;
+
+    if (IGNORED_LINK_PATTERNS.some((p) => p.test(clean))) continue;
+
+    linksSet.add(clean);
+  }
+
+  return {
+    name,
+    email,
+    phone,
+    location,
+    links: Array.from(linksSet),
+  };
+}
 
 /**
  * Deterministically extracts bullet strings from a raw text block using regex matching.
@@ -82,11 +154,11 @@ export function splitResumeIntoSections(resumeText: string): SplitSections {
         detectedCategory = "projects";
       } else if (/^(skills|technical skills|technologies|technical stack|core competencies|technical stack & algorithms)$/i.test(cleanHeader)) {
         detectedCategory = "skills";
-      } else if (/^(education|academic background|academic qualifications)$/i.test(cleanHeader)) {
+      } else if (/^(education|academic background|academic qualifications|education & certifications|education and certifications)$/i.test(cleanHeader)) {
         detectedCategory = "education";
-      } else if (/^(certifications|certifications & learning|certifications and learning|licenses|certifications & licenses)$/i.test(cleanHeader)) {
+      } else if (/^(certifications|certifications & learning|certifications and learning|licenses|certifications & licenses|certificates)$/i.test(cleanHeader)) {
         detectedCategory = "certifications";
-      } else if (/^(profile|summary|profile summary|professional summary|about me)$/i.test(cleanHeader)) {
+      } else if (/^(profile|summary|profile summary|professional summary|about me|objective|summary of qualifications)$/i.test(cleanHeader)) {
         detectedCategory = "summary";
       } else if (/^(additional|additional information|languages|methodology)$/i.test(cleanHeader)) {
         detectedCategory = "additional";
@@ -111,8 +183,26 @@ export function splitResumeIntoSections(resumeText: string): SplitSections {
     sections[currentCategory].push(rawLine);
   }
 
+  let summaryText = (sections.summary || []).join("\n").trim();
+
+  if (!summaryText && sections.other && sections.other.length > 0) {
+    const nonContactLines = sections.other.filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      if (trimmed.includes("@")) return false;
+      if (/(?:\+\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}/.test(trimmed)) return false;
+      if (/(?:linkedin|github|vercel|http|\.com|\.dev|\.io)/i.test(trimmed)) return false;
+      if (trimmed === lines.find((l) => l.trim().length > 0)?.trim()) return false;
+      return true;
+    });
+
+    if (nonContactLines.length > 0) {
+      summaryText = nonContactLines.join("\n").trim();
+    }
+  }
+
   return {
-    summaryText: (sections.summary || []).join("\n").trim(),
+    summaryText,
     experienceText: (sections.experience || []).join("\n").trim(),
     projectsText: (sections.projects || []).join("\n").trim(),
     skillsText: (sections.skills || []).join("\n").trim(),
@@ -193,9 +283,26 @@ function verifyBulletSubstrings(resumeText: string, data: ResumeData): void {
 
 export async function parseResume(resumeText: string): Promise<ResumeData> {
   const split = splitResumeIntoSections(resumeText);
+
+  // 1. Contact Location LLM prompt (ONLY first 5 header lines)
+  const headerLines = resumeText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .slice(0, 5)
+    .join("\n");
+
+  const locPrompt = `Extract ONLY the candidate's city, state/region, and/or country (location) from the resume header lines provided below.
+If a location is present (e.g. "New Delhi, India" or "San Francisco, CA"), return ONLY a JSON object matching this exact shape:
+{"location": "string"}
+If no location is found, return {"location": ""}.
+
+Resume Header Lines:
+${headerLines}`;
+
+  // 2. Scoped LLM Prompt: Experience Entry Metadata ONLY
   const experienceSourceText = split.experienceText.length > 0 ? split.experienceText : resumeText;
 
-  // 1. Scoped LLM Call: Experience Entry Metadata ONLY (no blockText, no bullets)
   const expPrompt = `You are an expert resume parser. Identify work experience entry metadata in the experience text provided below.
 Return ONLY company, title, dates, and location (if present) for each entry.
 
@@ -214,14 +321,112 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
 Experience Text Block:
 ${experienceSourceText}`;
 
-  const expResponse = await callLLM(expPrompt, 0.1);
+  // 3. Scoped LLM Prompt: Projects Entry Metadata ONLY
+  const projPrompt = split.projectsText.length > 0
+    ? `You are an expert resume parser. Identify project entry metadata in the projects text provided below.
+Return ONLY project name for each project.
+
+Return ONLY a valid JSON object matching this exact shape, with no markdown code fences:
+{
+  "projects": [
+    {
+      "name": "string"
+    }
+  ]
+}
+
+Projects Text Block:
+${split.projectsText}`
+    : "";
+
+  // 4. Scoped LLM Prompt: Technical Skills
+  const skillsSourceText = split.skillsText.length > 0 ? split.skillsText : resumeText;
+
+  const skillsPrompt = `You are an expert resume parser. Extract ONLY technical skills from the skills text provided below.
+
+Return ONLY a valid JSON array of string items matching this exact shape:
+["string"]
+
+CRITICAL EXTRACTION INSTRUCTIONS:
+- Extract skills exactly as listed in the text.
+- Split categories or comma-separated lists into individual skill strings (e.g. ["React.js", "Node.js", "TypeScript"]).
+
+Skills Text Block:
+${skillsSourceText}`;
+
+  // 5. Scoped LLM Prompt: Education
+  const eduPrompt = split.educationText.length > 0
+    ? `You are an expert resume parser. Extract ONLY education entries from the education text provided below.
+
+Return ONLY a valid JSON object matching this exact shape:
+{
+  "entries": [
+    {
+      "institution": "string",
+      "degree": "string",
+      "dates": "string"
+    }
+  ]
+}
+
+Education Text Block:
+${split.educationText}`
+    : "";
+
+  // 6. Scoped LLM Prompt: Certifications
+  const certSourceText = split.certificationsText.length > 0 ? split.certificationsText : split.educationText;
+  const certPrompt = certSourceText.length > 0
+    ? `You are an expert resume parser. Extract ONLY certification entries from the certifications text provided below.
+
+Return ONLY a valid JSON object matching this exact shape:
+{
+  "entries": [
+    {
+      "name": "string",
+      "issuer": "string"
+    }
+  ]
+}
+
+Certifications Text Block:
+${certSourceText}`
+    : "";
+
+  // Execute all scoped section LLM calls concurrently
+  const [
+    locResponse,
+    expResponse,
+    projResponse,
+    skillsResponse,
+    eduResponse,
+    certResponse,
+  ] = await Promise.all([
+    callLLM(locPrompt, 0.1).catch(() => '{"location":""}'),
+    callLLM(expPrompt, 0.1),
+    projPrompt ? callLLM(projPrompt, 0.1) : Promise.resolve('{"projects":[]}'),
+    callLLM(skillsPrompt, 0.1),
+    eduPrompt ? callLLM(eduPrompt, 0.1) : Promise.resolve('{"entries":[]}'),
+    certPrompt ? callLLM(certPrompt, 0.1) : Promise.resolve('{"entries":[]}'),
+  ]);
+
+  // Process Location
+  let extractedLocation = "";
+  try {
+    const parsedLoc = parseJSONWithRetry<{ location: string }>(locResponse, "Location");
+    extractedLocation = parsedLoc.location || "";
+  } catch {
+    extractedLocation = "";
+  }
+
+  const contactInfo = extractContactInfo(resumeText, extractedLocation);
+
+  // Process Experience
   const parsedExpMetadata = parseJSONWithRetry<{
     entries: { company: string; title: string; dates: string; location?: string }[];
   }>(expResponse, "Experience Metadata");
 
   const rawEntries = parsedExpMetadata.entries || [];
 
-  // Find start indices for each experience entry deterministically via indexOf in experienceSourceText
   const expStartIndices: number[] = [];
   let lastExpIndex = 0;
 
@@ -243,7 +448,6 @@ ${experienceSourceText}`;
     expStartIndices.push(foundIdx);
   }
 
-  // Slice blockText in TypeScript code & extract bullets deterministically
   const parsedExperience = rawEntries.map((entry, i) => {
     const start = expStartIndices[i];
     const end = i + 1 < rawEntries.length ? expStartIndices[i + 1] : experienceSourceText.length;
@@ -262,34 +466,15 @@ ${experienceSourceText}`;
       company: entry.company,
       title: entry.title,
       dates: entry.dates,
-      location: entry.location,
       bullets,
     };
   });
 
-  // 2. Scoped LLM Call: Projects Entry Metadata ONLY (no blockText, no bullets)
-  let parsedProjects: { name: string; bullets: string[]; url?: string; techStack?: string }[] = [];
+  // Process Projects
+  let parsedProjects: { name: string; bullets: string[] }[] = [];
   if (split.projectsText.length > 0) {
-    const projPrompt = `You are an expert resume parser. Identify project entry metadata in the projects text provided below.
-Return ONLY name, url (if present), and techStack (if present) for each project.
-
-Return ONLY a valid JSON object matching this exact shape, with no markdown code fences:
-{
-  "projects": [
-    {
-      "name": "string",
-      "url": "string (optional)",
-      "techStack": "string (optional)"
-    }
-  ]
-}
-
-Projects Text Block:
-${split.projectsText}`;
-
-    const projResponse = await callLLM(projPrompt, 0.1);
     const parsedProjMetadata = parseJSONWithRetry<{
-      projects: { name: string; url?: string; techStack?: string }[];
+      projects: { name: string }[];
     }>(projResponse, "Projects Metadata");
 
     const rawProjects = parsedProjMetadata.projects || [];
@@ -325,93 +510,52 @@ ${split.projectsText}`;
 
       return {
         name: proj.name,
-        url: proj.url,
-        techStack: proj.techStack,
         bullets,
       };
     });
   }
 
-  // 3. Scoped Call: Skills
-  let parsedSkills: string[] = [];
-  const skillsSourceText = split.skillsText.length > 0 ? split.skillsText : resumeText;
+  // Process Skills
+  const parsedSkills = parseJSONWithRetry<string[]>(skillsResponse, "Skills");
 
-  const skillsPrompt = `You are an expert resume parser. Extract ONLY technical skills from the skills text provided below.
-
-Return ONLY a valid JSON array of string items matching this exact shape:
-["string"]
-
-CRITICAL EXTRACTION INSTRUCTIONS:
-- Extract skills exactly as listed in the text.
-- Split categories or comma-separated lists into individual skill strings (e.g. ["React.js", "Node.js", "TypeScript"]).
-
-Skills Text Block:
-${skillsSourceText}`;
-
-  const skillsResponse = await callLLM(skillsPrompt, 0.1);
-  parsedSkills = parseJSONWithRetry<string[]>(skillsResponse, "Skills");
-
-  // 4. Scoped Call: Education (Optional)
-  let parsedEducation: { institution: string; degree: string; dates: string; details?: string }[] | undefined = undefined;
+  // Process Education
+  let parsedEducation: EducationEntry[] = [];
   if (split.educationText.length > 0) {
-    const eduPrompt = `You are an expert resume parser. Extract ONLY education entries from the education text provided below.
-
-Return ONLY a valid JSON array matching this exact shape:
-[
-  {
-    "institution": "string",
-    "degree": "string",
-    "dates": "string",
-    "details": "string (optional)"
-  }
-]
-
-Education Text Block:
-${split.educationText}`;
-
-    const eduResponse = await callLLM(eduPrompt, 0.1);
-    parsedEducation = parseJSONWithRetry<
-      { institution: string; degree: string; dates: string; details?: string }[]
-    >(eduResponse, "Education");
+    const parsedEduObj = parseJSONWithRetry<{
+      entries: { institution: string; degree: string; dates: string }[];
+    }>(eduResponse, "Education");
+    parsedEducation = (parsedEduObj.entries || []).map((e) => ({
+      institution: e.institution || "",
+      degree: e.degree || "",
+      dates: e.dates || "",
+    }));
   }
 
-  // 5. Scoped Call: Certifications (Optional)
-  let parsedCertifications: string[] | undefined = undefined;
-  if (split.certificationsText.length > 0) {
-    const certPrompt = `You are an expert resume parser. Extract ONLY certification items as a string array from the text below.
-
-Return ONLY a valid JSON array of strings:
-["string"]
-
-Certifications Text Block:
-${split.certificationsText}`;
-
-    const certResponse = await callLLM(certPrompt, 0.1);
-    parsedCertifications = parseJSONWithRetry<string[]>(certResponse, "Certifications");
-  }
-
-  // 6. Additional info lines (Optional)
-  let parsedAdditional: string[] | undefined = undefined;
-  if (split.additionalText.length > 0) {
-    parsedAdditional = split.additionalText
-      .split("\n")
-      .map((l) => l.trim().replace(/^[\#\*\-\•\>]+\s*/, ""))
-      .filter((l) => l.length > 0);
+  // Process Certifications
+  let parsedCertifications: CertificationEntry[] = [];
+  if (certSourceText.length > 0) {
+    const parsedCertObj = parseJSONWithRetry<{
+      entries: { name: string; issuer: string }[];
+    }>(certResponse, "Certifications");
+    parsedCertifications = (parsedCertObj.entries || []).map((c) => ({
+      name: c.name || "",
+      issuer: c.issuer || "",
+    }));
   }
 
   const finalResult: ResumeData = {
+    contact: contactInfo,
+    summary: split.summaryText.trim(),
     sections: {
-      summary: split.summaryText.length > 0 ? split.summaryText : undefined,
       experience: parsedExperience,
       projects: parsedProjects,
+      skills: parsedSkills,
       education: parsedEducation,
       certifications: parsedCertifications,
-      skills: parsedSkills,
-      additional: parsedAdditional,
     },
   };
 
-  // 5. Run Last-Line Substring Verification
+  // Run Substring Verification for Bullets
   verifyBulletSubstrings(resumeText, finalResult);
 
   return finalResult;
