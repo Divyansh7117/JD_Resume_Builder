@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import mammoth from "mammoth";
 
-// Load CJS module pdf-parse dynamically to prevent ESM default export compilation error in Next.js
+// Require pdf-parse/lib/pdf-parse.js directly to bypass pdf-parse index.js debug test file read bug
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+const pdfParse = require("pdf-parse/lib/pdf-parse.js");
 
 export async function POST(request: Request) {
   try {
