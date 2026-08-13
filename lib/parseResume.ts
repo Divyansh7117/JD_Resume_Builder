@@ -11,6 +11,41 @@ export interface SplitSections {
   additionalText: string;
 }
 
+const BULLET_MARKER_REGEX = /^[\s\t]*[•●\-\*▪○▸\+–—\>]\s*|^[\s\t]*\d+[\.\)]\s+/;
+
+/**
+ * Deterministically extracts bullet strings from a raw text block using regex matching.
+ * Bullet text is NEVER rewritten — line content is extracted character-for-character.
+ * Multi-line wrapped bullets are joined with a space.
+ */
+export function extractBulletsFromBlock(text: string): string[] {
+  if (!text || !text.trim()) return [];
+
+  const lines = text.split("\n");
+  const bullets: string[] = [];
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+
+    if (BULLET_MARKER_REGEX.test(rawLine)) {
+      // Strip leading bullet symbol and whitespace
+      const cleanBullet = rawLine
+        .replace(/^[\s\t]*[•●\-\*▪○▸\+–—\>]\s*|^[\s\t]*\d+[\.\)]\s*/, "")
+        .trim();
+
+      if (cleanBullet.length > 0) {
+        bullets.push(cleanBullet);
+      }
+    } else if (bullets.length > 0) {
+      // Append non-bullet continuation lines to the previous bullet
+      bullets[bullets.length - 1] += " " + trimmed;
+    }
+  }
+
+  return bullets;
+}
+
 /**
  * Deterministically splits raw resume text into scoped section blocks based on header patterns.
  */
@@ -106,64 +141,125 @@ function parseJSONWithRetry<T>(responseText: string, fallbackName: string): T {
 
 export async function parseResume(resumeText: string): Promise<ResumeData> {
   const split = splitResumeIntoSections(resumeText);
-
-  // Fallback to full resume text for experience if deterministic splitting returned empty
   const experienceSourceText = split.experienceText.length > 0 ? split.experienceText : resumeText;
 
-  // 1. Scoped Call: Experience
-  const expPrompt = `You are an expert resume parser. Extract ONLY work experience entries from the experience section of the resume provided below.
-This text block contains ONLY experience content (no projects, skills, or education).
+  // 1. LLM Boundary Call: Experience Structural Boundaries
+  const expPrompt = `You are an expert resume parser. Identify structural boundaries for each work experience entry in the text provided below.
+For each experience entry, return company, title, dates, location (if present), and blockText.
 
-Return ONLY a valid JSON array matching this exact shape, with no markdown code fences:
-[
-  {
-    "company": "string",
-    "title": "string",
-    "dates": "string",
-    "bullets": ["string"],
-    "location": "string (optional)"
-  }
-]
+blockText MUST be the exact raw text segment (copied character-for-character, unmodified) belonging to that entry, INCLUDING all bullet lines exactly as they appear in the source text.
 
-CRITICAL EXTRACTION INSTRUCTIONS:
-- You MUST extract bullets exactly as they appear in the source text — no rewriting, summarizing, or paraphrasing at this stage.
-- Extract every single bullet point for each company entry exhaustively. DO NOT skip any bullet.
-- Do NOT invent or infer any company, title, date, or bullet not present in the text.
+Return ONLY a valid JSON object matching this exact shape:
+{
+  "entries": [
+    {
+      "company": "string",
+      "title": "string",
+      "dates": "string",
+      "location": "string (optional)",
+      "blockText": "string"
+    }
+  ]
+}
+
+CRITICAL INSTRUCTIONS:
+- Copy blockText character-for-character from the source text. Do not rewrite, summarize, paraphrase, or omit any line or bullet.
+- Do NOT generate or rewrite bullet strings.
 
 Experience Text Block:
 ${experienceSourceText}`;
 
   const expResponse = await callLLM(expPrompt, 0.1);
-  const parsedExperience = parseJSONWithRetry<
-    { company: string; title: string; dates: string; bullets: string[]; location?: string }[]
-  >(expResponse, "Experience");
+  const parsedExpStruct = parseJSONWithRetry<{
+    entries: { company: string; title: string; dates: string; location?: string; blockText: string }[];
+  }>(expResponse, "Experience Boundaries");
 
-  // 2. Scoped Call: Projects
+  const parsedExperience = (parsedExpStruct.entries || []).map((entry) => {
+    let bullets = extractBulletsFromBlock(entry.blockText);
+
+    // Fallback if no bullet markers were found in blockText
+    if (bullets.length === 0 && entry.blockText) {
+      bullets = entry.blockText
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.includes(entry.company) && !l.includes(entry.title));
+    }
+
+    // Sanity Assertion
+    const rawLines = (entry.blockText || "").split("\n");
+    const markerCount = rawLines.filter((l) => BULLET_MARKER_REGEX.test(l)).length;
+    if (markerCount > 0 && markerCount !== bullets.length) {
+      console.warn(
+        `[BULLET SANITY WARNING] Mismatch in '${entry.company}': expected ${markerCount} bullets from markers, extracted ${bullets.length} bullets.`
+      );
+    }
+
+    return {
+      company: entry.company,
+      title: entry.title,
+      dates: entry.dates,
+      location: entry.location,
+      bullets,
+    };
+  });
+
+  // 2. LLM Boundary Call: Projects Structural Boundaries
   let parsedProjects: { name: string; bullets: string[]; url?: string; techStack?: string }[] = [];
   if (split.projectsText.length > 0) {
-    const projPrompt = `You are an expert resume parser. Extract ONLY project entries from the projects section provided below.
+    const projPrompt = `You are an expert resume parser. Identify structural boundaries for each project entry in the text provided below.
+For each project entry, return name, url (if present), techStack (if present), and blockText.
 
-Return ONLY a valid JSON array matching this exact shape, with no markdown code fences:
-[
-  {
-    "name": "string",
-    "bullets": ["string"],
-    "url": "string (optional)",
-    "techStack": "string (optional)"
-  }
-]
+blockText MUST be the exact raw text segment (copied character-for-character, unmodified) belonging to that project entry, INCLUDING all bullet lines exactly as they appear in the source text.
 
-CRITICAL EXTRACTION INSTRUCTIONS:
-- Extract bullets exactly as they appear in the source text — no rewriting or paraphrasing.
-- Extract every single bullet point for each project entry.
+Return ONLY a valid JSON object matching this exact shape:
+{
+  "projects": [
+    {
+      "name": "string",
+      "url": "string (optional)",
+      "techStack": "string (optional)",
+      "blockText": "string"
+    }
+  ]
+}
+
+CRITICAL INSTRUCTIONS:
+- Copy blockText character-for-character from the source text. Do not rewrite, summarize, or paraphrase anything.
 
 Projects Text Block:
 ${split.projectsText}`;
 
     const projResponse = await callLLM(projPrompt, 0.1);
-    parsedProjects = parseJSONWithRetry<
-      { name: string; bullets: string[]; url?: string; techStack?: string }[]
-    >(projResponse, "Projects");
+    const parsedProjStruct = parseJSONWithRetry<{
+      projects: { name: string; url?: string; techStack?: string; blockText: string }[];
+    }>(projResponse, "Projects Boundaries");
+
+    parsedProjects = (parsedProjStruct.projects || []).map((proj) => {
+      let bullets = extractBulletsFromBlock(proj.blockText);
+
+      if (bullets.length === 0 && proj.blockText) {
+        bullets = proj.blockText
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0 && !l.includes(proj.name));
+      }
+
+      // Sanity Assertion
+      const rawLines = (proj.blockText || "").split("\n");
+      const markerCount = rawLines.filter((l) => BULLET_MARKER_REGEX.test(l)).length;
+      if (markerCount > 0 && markerCount !== bullets.length) {
+        console.warn(
+          `[BULLET SANITY WARNING] Mismatch in project '${proj.name}': expected ${markerCount} bullets from markers, extracted ${bullets.length} bullets.`
+        );
+      }
+
+      return {
+        name: proj.name,
+        url: proj.url,
+        techStack: proj.techStack,
+        bullets,
+      };
+    });
   }
 
   // 3. Scoped Call: Skills
@@ -172,7 +268,7 @@ ${split.projectsText}`;
 
   const skillsPrompt = `You are an expert resume parser. Extract ONLY technical skills from the skills text provided below.
 
-Return ONLY a valid JSON array of string items matching this exact shape, with no markdown code fences:
+Return ONLY a valid JSON array of string items matching this exact shape:
 ["string"]
 
 CRITICAL EXTRACTION INSTRUCTIONS:
@@ -190,7 +286,7 @@ ${skillsSourceText}`;
   if (split.educationText.length > 0) {
     const eduPrompt = `You are an expert resume parser. Extract ONLY education entries from the education text provided below.
 
-Return ONLY a valid JSON array matching this exact shape, with no markdown code fences:
+Return ONLY a valid JSON array matching this exact shape:
 [
   {
     "institution": "string",
