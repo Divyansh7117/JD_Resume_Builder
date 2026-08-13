@@ -26,6 +26,7 @@ Return ONLY valid JSON matching this exact shape, with no markdown code fences, 
 
 CRITICAL EXTRACTION INSTRUCTIONS:
 - You MUST extract bullets exactly as they appear in the source text — no rewriting, summarizing, or paraphrasing at this stage. This is a pure extraction step, not a rewriting step.
+- DO NOT SKIP ANY experience entry, project entry, or bullet point. Extract the ENTIRE resume content exhaustively.
 - Only extract skills, tools, and experience that are explicitly mentioned in the resume text. Do not infer, assume, or add any skill or detail that is not literally present in the text, even if it seems typical for this type of role.
 
 Raw Resume Text:

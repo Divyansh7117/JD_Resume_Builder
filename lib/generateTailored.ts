@@ -178,7 +178,7 @@ TAILORING INSTRUCTIONS (HIGH JD ALIGNMENT):
 1. FOR EXPERIENCE BULLETS:
    - For each work experience entry, reorder the bullets so that bullets containing matched JD skills/keywords appear FIRST (#1 and #2).
    - Rephrase the bullet statements to explicitly highlight the matched JD skills at the beginning of the sentence using strong action verbs (e.g. "Leveraged React and TypeScript to...", "Engineered REST APIs using Node.js for...").
-   - Maintain the EXACT bullet count, company name, title, and date range for each company entry.
+   - Maintain the EXACT bullet count, company name, title, and date range for each company entry. DO NOT SKIP ANY COMPANY OR EXPERIENCE ENTRY.
    - Do NOT invent any company, title, date range, metric, or achievement not present in the original resume.
 
 2. FOR REORDERED SKILLS LIST ("rewritten_skills"):
