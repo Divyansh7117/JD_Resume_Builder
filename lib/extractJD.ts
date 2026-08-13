@@ -12,10 +12,13 @@ Return ONLY a valid JSON object with no markdown formatting, no code fences, and
   "seniority_signal": "string"
 }
 
+CRITICAL EXTRACTION CONSTRAINTS:
+Only extract skills, tools, and requirements that are explicitly mentioned in the job description text. Do not infer, assume, or add any skill that is not literally present in the text, even if it seems typical for this type of role.
+
 Job Description:
 ${jdText}`;
 
-  const responseText = await callLLM(prompt);
+  const responseText = await callLLM(prompt, 0.2);
 
   try {
     return JSON.parse(responseText) as JDRequirements;
