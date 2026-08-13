@@ -827,6 +827,84 @@ export default function AppPage() {
                     })}
                   </div>
                 </div>
+
+                {/* Projects Section */}
+                {result.originalResume.sections.projects && result.originalResume.sections.projects.length > 0 && (
+                  <div className="mt-8">
+                    <div className="mb-4">
+                      <span className="section-label font-bold text-[#0F1419]">Projects</span>
+                    </div>
+                    {result.originalResume.sections.projects.map((proj, idx) => (
+                      <div key={idx} className="mb-4 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
+                        <div className="flex items-baseline justify-between mb-1">
+                          <span className="font-heading font-semibold text-sm text-[#0F1419]">{proj.name}</span>
+                          {proj.url && <span className="font-label text-xs text-[#3654FF]">{proj.url}</span>}
+                        </div>
+                        {proj.techStack && (
+                          <div className="text-xs text-[#6B7280] italic mb-2">Tech: {proj.techStack}</div>
+                        )}
+                        <ul className="space-y-1">
+                          {proj.bullets.map((bullet, bIdx) => (
+                            <li key={bIdx} className="text-sm pl-4 relative text-[#374151]">
+                              <span className="absolute left-0 text-[#9CA3AF]">•</span>
+                              {bullet}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Education Section */}
+                {result.originalResume.sections.education && result.originalResume.sections.education.length > 0 && (
+                  <div className="mt-8">
+                    <div className="mb-4">
+                      <span className="section-label font-bold text-[#0F1419]">Education</span>
+                    </div>
+                    {result.originalResume.sections.education.map((edu, idx) => (
+                      <div key={idx} className="mb-3 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
+                        <div className="flex items-baseline justify-between">
+                          <span className="font-heading font-semibold text-sm text-[#0F1419]">{edu.degree} — {edu.institution}</span>
+                          <span className="font-label text-xs text-[#6B7280]">{edu.dates}</span>
+                        </div>
+                        {edu.details && <p className="text-xs text-[#4B5563] mt-1">{edu.details}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Certifications Section */}
+                {result.originalResume.sections.certifications && result.originalResume.sections.certifications.length > 0 && (
+                  <div className="mt-8">
+                    <div className="mb-3">
+                      <span className="section-label font-bold text-[#0F1419]">Certifications & Learning</span>
+                    </div>
+                    <ul className="space-y-1.5 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
+                      {result.originalResume.sections.certifications.map((cert, idx) => (
+                        <li key={idx} className="text-sm text-[#374151] flex items-center gap-2">
+                          <span className="text-[#1F9D6B]">✓</span> {cert}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Additional Information Section */}
+                {result.originalResume.sections.additional && result.originalResume.sections.additional.length > 0 && (
+                  <div className="mt-8">
+                    <div className="mb-3">
+                      <span className="section-label font-bold text-[#0F1419]">Additional Information</span>
+                    </div>
+                    <ul className="space-y-1.5 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
+                      {result.originalResume.sections.additional.map((item, idx) => (
+                        <li key={idx} className="text-sm text-[#374151] flex items-center gap-2">
+                          <span className="text-[#3654FF]">•</span> {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
 

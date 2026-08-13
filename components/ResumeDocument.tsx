@@ -85,7 +85,7 @@ const darkStyles = StyleSheet.create({
    ═══════════════════════════════════════════════ */
 const compactStyles = StyleSheet.create({
   page: { padding: 24, fontFamily: "Helvetica", fontSize: 9, lineHeight: 1.25, color: "#111827" },
-  header: { marginBottom: 10, flexDirection: "row", justifyBetween: "space-between", borderBottomWidth: 1, borderBottomColor: "#8B5CF6", paddingBottom: 4 },
+  header: { marginBottom: 10, flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#8B5CF6", paddingBottom: 4 },
   name: { fontSize: 14, fontFamily: "Helvetica-Bold" },
   contact: { fontSize: 8, color: "#4B5563" },
   sectionTitle: { fontSize: 9.5, fontFamily: "Helvetica-Bold", color: "#8B5CF6", textTransform: "uppercase", marginBottom: 4, borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
@@ -113,12 +113,37 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
           <View style={sidebarStyles.leftSidebar}>
             <Text style={sidebarStyles.sidebarName}>{name}</Text>
             <Text style={sidebarStyles.sidebarContact}>{contact}</Text>
-            <View style={{ marginTop: 12 }}>
-              <Text style={sidebarStyles.sidebarSectionTitle}>TECHNICAL SKILLS</Text>
-              {skills.map((skill, sIdx) => (
-                <Text key={sIdx} style={sidebarStyles.skillTag}>• {skill}</Text>
-              ))}
-            </View>
+
+            {skills && skills.length > 0 && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={sidebarStyles.sidebarSectionTitle}>TECHNICAL SKILLS</Text>
+                {skills.map((skill, sIdx) => (
+                  <Text key={sIdx} style={sidebarStyles.skillTag}>• {skill}</Text>
+                ))}
+              </View>
+            )}
+
+            {education && education.length > 0 && (
+              <View style={{ marginTop: 14 }}>
+                <Text style={sidebarStyles.sidebarSectionTitle}>EDUCATION</Text>
+                {education.map((edu, eIdx) => (
+                  <View key={eIdx} style={{ marginBottom: 6 }}>
+                    <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#FFFFFF" }}>{edu.degree}</Text>
+                    <Text style={{ fontSize: 7.5, color: "#E0E7FF" }}>{edu.institution}</Text>
+                    <Text style={{ fontSize: 7, color: "#93C5FD" }}>{edu.dates}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {certifications && certifications.length > 0 && (
+              <View style={{ marginTop: 14 }}>
+                <Text style={sidebarStyles.sidebarSectionTitle}>CERTIFICATIONS</Text>
+                {certifications.map((cert, cIdx) => (
+                  <Text key={cIdx} style={{ fontSize: 7.5, color: "#E0E7FF", marginBottom: 3 }}>• {cert}</Text>
+                ))}
+              </View>
+            )}
           </View>
           <View style={sidebarStyles.rightMain}>
             {summary ? (
@@ -127,6 +152,7 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
                 <Text style={{ fontSize: 9.5, color: "#374151" }}>{summary}</Text>
               </View>
             ) : null}
+
             {experience && experience.length > 0 ? (
               <View style={{ marginBottom: 12 }}>
                 <Text style={sidebarStyles.mainSectionTitle}>WORK EXPERIENCE</Text>
@@ -141,6 +167,32 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
                       </View>
                     ))}
                   </View>
+                ))}
+              </View>
+            ) : null}
+
+            {projects && projects.length > 0 ? (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={sidebarStyles.mainSectionTitle}>KEY PROJECTS</Text>
+                {projects.map((proj, idx) => (
+                  <View key={idx} style={{ marginBottom: 6 }} wrap={false}>
+                    <Text style={{ fontSize: 9.5, fontFamily: "Helvetica-Bold" }}>{proj.name}</Text>
+                    {proj.bullets.map((b, bIdx) => (
+                      <View key={bIdx} style={{ flexDirection: "row", marginBottom: 1.5 }}>
+                        <Text style={{ width: 8, fontSize: 8.5, color: "#3654FF" }}>•</Text>
+                        <Text style={{ flex: 1, fontSize: 8.5, color: "#374151" }}>{b}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {additional && additional.length > 0 ? (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={sidebarStyles.mainSectionTitle}>ADDITIONAL INFORMATION</Text>
+                {additional.map((item, aIdx) => (
+                  <Text key={aIdx} style={{ fontSize: 8.5, color: "#374151", marginBottom: 2 }}>• {item}</Text>
                 ))}
               </View>
             ) : null}
@@ -159,6 +211,14 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             <Text style={darkStyles.name}>// {name}</Text>
             <Text style={darkStyles.contact}>{contact}</Text>
           </View>
+
+          {summary && (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={darkStyles.sectionTitle}>&gt; PROFILE_SUMMARY</Text>
+              <Text style={{ fontSize: 9, color: "#D4D4D8" }}>{summary}</Text>
+            </View>
+          )}
+
           {experience && experience.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={darkStyles.sectionTitle}>&gt; WORK_EXPERIENCE</Text>
@@ -176,10 +236,46 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
               ))}
             </View>
           ) : null}
+
+          {projects && projects.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={darkStyles.sectionTitle}>&gt; PROJECTS</Text>
+              {projects.map((proj, idx) => (
+                <View key={idx} style={{ marginBottom: 6 }} wrap={false}>
+                  <Text style={{ fontSize: 9, fontFamily: "Courier-Bold", color: "#FFFFFF" }}>{proj.name}</Text>
+                  {proj.bullets.map((b, bIdx) => (
+                    <View key={bIdx} style={{ flexDirection: "row", marginBottom: 1.5 }}>
+                      <Text style={darkStyles.bulletPoint}>+</Text>
+                      <Text style={{ flex: 1, fontSize: 8.5, color: "#D4D4D8" }}>{b}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {skills && skills.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={darkStyles.sectionTitle}>&gt; TECHNICAL_STACK</Text>
               <Text style={{ fontSize: 9, color: "#1F9D6B" }}>{skills.join(" • ")}</Text>
+            </View>
+          ) : null}
+
+          {education && education.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={darkStyles.sectionTitle}>&gt; EDUCATION</Text>
+              {education.map((edu, idx) => (
+                <Text key={idx} style={{ fontSize: 8.5, color: "#E5E7EB" }}>
+                  {edu.degree} — {edu.institution} ({edu.dates})
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
+          {certifications && certifications.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={darkStyles.sectionTitle}>&gt; CERTIFICATIONS</Text>
+              <Text style={{ fontSize: 8.5, color: "#E5E7EB" }}>{certifications.join(" • ")}</Text>
             </View>
           ) : null}
         </Page>
@@ -196,11 +292,13 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             <Text style={executiveStyles.name}>{name}</Text>
             <Text style={executiveStyles.contact}>{contact}</Text>
           </View>
+
           {summary ? (
             <View style={executiveStyles.summaryBox}>
               <Text>{summary}</Text>
             </View>
           ) : null}
+
           {experience && experience.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={executiveStyles.sectionTitle}>LEADERSHIP EXPERIENCE</Text>
@@ -220,10 +318,47 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
               ))}
             </View>
           ) : null}
+
+          {projects && projects.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={executiveStyles.sectionTitle}>STRATEGIC PROJECTS</Text>
+              {projects.map((proj, idx) => (
+                <View key={idx} style={{ marginBottom: 6 }} wrap={false}>
+                  <Text style={{ fontSize: 9.5, fontFamily: "Helvetica-Bold" }}>{proj.name}</Text>
+                  {proj.bullets.map((b, bIdx) => (
+                    <View key={bIdx} style={{ flexDirection: "row", marginBottom: 1.5 }}>
+                      <Text style={{ width: 10, fontSize: 9, color: "#D08C1B" }}>▪</Text>
+                      <Text style={{ flex: 1, fontSize: 9, color: "#374151" }}>{b}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {skills && skills.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={executiveStyles.sectionTitle}>CORE COMPETENCIES</Text>
               <Text style={{ fontSize: 9.5, color: "#374151" }}>{skills.join(" • ")}</Text>
+            </View>
+          ) : null}
+
+          {education && education.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={executiveStyles.sectionTitle}>EDUCATION</Text>
+              {education.map((edu, idx) => (
+                <View key={idx} style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold" }}>{edu.degree} | {edu.institution}</Text>
+                  <Text style={{ fontSize: 8.5, color: "#6B7280" }}>{edu.dates}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {certifications && certifications.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={executiveStyles.sectionTitle}>CERTIFICATIONS</Text>
+              <Text style={{ fontSize: 9, color: "#374151" }}>{certifications.join(" • ")}</Text>
             </View>
           ) : null}
         </Page>
@@ -240,6 +375,13 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             <Text style={compactStyles.name}>{name}</Text>
             <Text style={compactStyles.contact}>{contact}</Text>
           </View>
+
+          {summary && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={{ fontSize: 8.5, color: "#374151" }}>{summary}</Text>
+            </View>
+          )}
+
           {experience && experience.length > 0 ? (
             <View style={{ marginBottom: 8 }}>
               <Text style={compactStyles.sectionTitle}>EXPERIENCE</Text>
@@ -259,10 +401,47 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
               ))}
             </View>
           ) : null}
+
+          {projects && projects.length > 0 ? (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={compactStyles.sectionTitle}>PROJECTS</Text>
+              {projects.map((proj, idx) => (
+                <View key={idx} style={{ marginBottom: 3 }} wrap={false}>
+                  <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold" }}>{proj.name}</Text>
+                  {proj.bullets.map((b, bIdx) => (
+                    <View key={bIdx} style={{ flexDirection: "row", marginBottom: 1 }}>
+                      <Text style={{ width: 8, fontSize: 8 }}>•</Text>
+                      <Text style={{ flex: 1, fontSize: 8 }}>{b}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {skills && skills.length > 0 ? (
             <View style={{ marginBottom: 8 }}>
               <Text style={compactStyles.sectionTitle}>TECHNICAL SKILLS</Text>
               <Text style={{ fontSize: 8.5 }}>{skills.join(", ")}</Text>
+            </View>
+          ) : null}
+
+          {education && education.length > 0 ? (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={compactStyles.sectionTitle}>EDUCATION</Text>
+              {education.map((edu, idx) => (
+                <View key={idx} style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold" }}>{edu.degree} - {edu.institution}</Text>
+                  <Text style={{ fontSize: 8, color: "#6B7280" }}>{edu.dates}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {certifications && certifications.length > 0 ? (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={compactStyles.sectionTitle}>CERTIFICATIONS</Text>
+              <Text style={{ fontSize: 8 }}>{certifications.join(" • ")}</Text>
             </View>
           ) : null}
         </Page>
@@ -279,6 +458,13 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             <Text style={academicStyles.name}>{name}</Text>
             <Text style={academicStyles.contact}>{contact}</Text>
           </View>
+
+          {summary && (
+            <View style={{ marginBottom: 10 }}>
+              <Text style={{ fontSize: 9.5, fontFamily: "Times-Roman" }}>{summary}</Text>
+            </View>
+          )}
+
           {experience && experience.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={academicStyles.sectionTitle}>RESEARCH & ENGINEERING EXPERIENCE</Text>
@@ -298,10 +484,47 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
               ))}
             </View>
           ) : null}
+
+          {projects && projects.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={academicStyles.sectionTitle}>PUBLICATIONS & PROJECTS</Text>
+              {projects.map((proj, idx) => (
+                <View key={idx} style={{ marginBottom: 6 }} wrap={false}>
+                  <Text style={{ fontSize: 9.5, fontFamily: "Times-Bold" }}>{proj.name}</Text>
+                  {proj.bullets.map((b, bIdx) => (
+                    <View key={bIdx} style={{ flexDirection: "row", marginBottom: 2 }}>
+                      <Text style={{ width: 10, fontSize: 9 }}>•</Text>
+                      <Text style={{ flex: 1, fontSize: 9 }}>{b}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {skills && skills.length > 0 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={academicStyles.sectionTitle}>TECHNICAL STACK & ALGORITHMS</Text>
               <Text style={{ fontSize: 9.5 }}>{skills.join(", ")}</Text>
+            </View>
+          ) : null}
+
+          {education && education.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={academicStyles.sectionTitle}>EDUCATION</Text>
+              {education.map((edu, idx) => (
+                <View key={idx} style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                  <Text style={{ fontSize: 9.5, fontFamily: "Times-Bold" }}>{edu.degree}, {edu.institution}</Text>
+                  <Text style={{ fontSize: 9, fontFamily: "Times-Italic", color: "#555555" }}>{edu.dates}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {certifications && certifications.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={academicStyles.sectionTitle}>CERTIFICATIONS</Text>
+              <Text style={{ fontSize: 9 }}>{certifications.join(" • ")}</Text>
             </View>
           ) : null}
         </Page>
@@ -317,12 +540,14 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
           <Text style={standardStyles.name}>{name}</Text>
           <Text style={standardStyles.contact}>{contact}</Text>
         </View>
+
         {summary ? (
           <View style={{ marginBottom: 12 }}>
-            <Text style={standardStyles.sectionTitle}>SUMMARY</Text>
+            <Text style={standardStyles.sectionTitle}>PROFILE SUMMARY</Text>
             <Text style={{ fontSize: 10, color: "#374151" }}>{summary}</Text>
           </View>
         ) : null}
+
         {experience && experience.length > 0 ? (
           <View style={standardStyles.section}>
             <Text style={standardStyles.sectionTitle}>EXPERIENCE</Text>
@@ -346,6 +571,7 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             ))}
           </View>
         ) : null}
+
         {projects && projects.length > 0 ? (
           <View style={standardStyles.section}>
             <Text style={standardStyles.sectionTitle}>PROJECTS</Text>
@@ -370,12 +596,14 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             ))}
           </View>
         ) : null}
+
         {skills && skills.length > 0 ? (
           <View style={standardStyles.section}>
-            <Text style={standardStyles.sectionTitle}>SKILLS</Text>
+            <Text style={standardStyles.sectionTitle}>TECHNICAL SKILLS</Text>
             <Text style={standardStyles.skillsText}>{skills.join(", ")}</Text>
           </View>
         ) : null}
+
         {education && education.length > 0 ? (
           <View style={standardStyles.section}>
             <Text style={standardStyles.sectionTitle}>EDUCATION</Text>
@@ -399,9 +627,10 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             ))}
           </View>
         ) : null}
+
         {certifications && certifications.length > 0 ? (
           <View style={standardStyles.section}>
-            <Text style={standardStyles.sectionTitle}>CERTIFICATIONS</Text>
+            <Text style={standardStyles.sectionTitle}>CERTIFICATIONS & LEARNING</Text>
             <View style={{ marginTop: 2, marginBottom: 2 }}>
               {certifications.map((cert, cIdx) => (
                 <View key={cIdx} style={standardStyles.bulletItem}>
@@ -412,15 +641,16 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             </View>
           </View>
         ) : null}
+
         {additional && additional.length > 0 ? (
           <View style={standardStyles.section}>
-            <Text style={standardStyles.sectionTitle}>ADDITIONAL</Text>
+            <Text style={standardStyles.sectionTitle}>ADDITIONAL INFORMATION</Text>
             <View style={{ marginTop: 2, marginBottom: 2 }}>
               {additional.map((item, aIdx) => (
                 <View key={aIdx} style={standardStyles.bulletItem}>
                   <Text style={standardStyles.bulletPoint}>•</Text>
                   <Text style={standardStyles.bulletText}>{item}</Text>
-             </View>
+                </View>
               ))}
             </View>
           </View>
