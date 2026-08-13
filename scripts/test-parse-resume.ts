@@ -47,6 +47,8 @@ B.Tech – Computer Science Engineering (Data Science) | 2024 – 2028
 USICT, Guru Gobind Singh Indraprastha University · New Delhi
 `;
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function testResume(label: string, text: string) {
   console.log(`\n=======================================================`);
   console.log(`TESTING: ${label}`);
@@ -81,7 +83,9 @@ async function testResume(label: string, text: string) {
 async function main() {
   try {
     await testResume("RESUME A: Real Divyansh Agarwal Resume", divyanshResumeText);
+    await sleep(3000);
     await testResume("RESUME B: Projects Before Experience, Dash Bullets, Single Paragraph Skills", sampleResumeB);
+    await sleep(3000);
     await testResume("RESUME C: Multiple Jobs, Mixed Headers, Inconsistent Spacing", sampleResumeC);
   } catch (err) {
     console.error("Test execution failed:", err);

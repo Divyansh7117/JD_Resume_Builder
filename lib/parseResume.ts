@@ -139,59 +139,123 @@ function parseJSONWithRetry<T>(responseText: string, fallbackName: string): T {
   }
 }
 
+/**
+ * Finds start index of a string in source text case-insensitively, rewinding to line-start (\n).
+ */
+function findStringIndex(source: string, searchStr: string, fromIndex: number = 0): number {
+  if (!searchStr || !searchStr.trim()) return -1;
+  const lowerSource = source.toLowerCase();
+  const lowerSearch = searchStr.toLowerCase().trim();
+
+  let idx = lowerSource.indexOf(lowerSearch, fromIndex);
+  if (idx !== -1) {
+    const lineStart = lowerSource.lastIndexOf("\n", idx);
+    return lineStart === -1 ? 0 : lineStart + 1;
+  }
+
+  if (lowerSearch.length > 10) {
+    idx = lowerSource.indexOf(lowerSearch.substring(0, 10), fromIndex);
+    if (idx !== -1) {
+      const lineStart = lowerSource.lastIndexOf("\n", idx);
+      return lineStart === -1 ? 0 : lineStart + 1;
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * Verification step: Confirms that every extracted bullet appears as a substring in the original full resumeText.
+ */
+function verifyBulletSubstrings(resumeText: string, data: ResumeData): void {
+  const fullTextLower = resumeText.toLowerCase();
+
+  const allEntries = [
+    ...(data.sections.experience || []).map((e) => ({ label: `experience '${e.company}'`, bullets: e.bullets })),
+    ...(data.sections.projects || []).map((p) => ({ label: `project '${p.name}'`, bullets: p.bullets })),
+  ];
+
+  for (const item of allEntries) {
+    for (const bullet of item.bullets) {
+      const trimmedBullet = bullet.trim();
+      if (!trimmedBullet) continue;
+
+      const sample = trimmedBullet.length > 25 ? trimmedBullet.substring(0, 25).toLowerCase() : trimmedBullet.toLowerCase();
+
+      if (!fullTextLower.includes(sample)) {
+        console.error(
+          `[SUBSTRING VERIFICATION ERROR] Bullet "${trimmedBullet}" for ${item.label} NOT found in original resumeText!`
+        );
+      }
+    }
+  }
+}
+
 export async function parseResume(resumeText: string): Promise<ResumeData> {
   const split = splitResumeIntoSections(resumeText);
   const experienceSourceText = split.experienceText.length > 0 ? split.experienceText : resumeText;
 
-  // 1. LLM Boundary Call: Experience Structural Boundaries
-  const expPrompt = `You are an expert resume parser. Identify structural boundaries for each work experience entry in the text provided below.
-For each experience entry, return company, title, dates, location (if present), and blockText.
+  // 1. Scoped LLM Call: Experience Entry Metadata ONLY (no blockText, no bullets)
+  const expPrompt = `You are an expert resume parser. Identify work experience entry metadata in the experience text provided below.
+Return ONLY company, title, dates, and location (if present) for each entry.
 
-blockText MUST be the exact raw text segment (copied character-for-character, unmodified) belonging to that entry, INCLUDING all bullet lines exactly as they appear in the source text.
-
-Return ONLY a valid JSON object matching this exact shape:
+Return ONLY a valid JSON object matching this exact shape, with no markdown code fences:
 {
   "entries": [
     {
       "company": "string",
       "title": "string",
       "dates": "string",
-      "location": "string (optional)",
-      "blockText": "string"
+      "location": "string (optional)"
     }
   ]
 }
-
-CRITICAL INSTRUCTIONS:
-- Copy blockText character-for-character from the source text. Do not rewrite, summarize, paraphrase, or omit any line or bullet.
-- Do NOT generate or rewrite bullet strings.
 
 Experience Text Block:
 ${experienceSourceText}`;
 
   const expResponse = await callLLM(expPrompt, 0.1);
-  const parsedExpStruct = parseJSONWithRetry<{
-    entries: { company: string; title: string; dates: string; location?: string; blockText: string }[];
-  }>(expResponse, "Experience Boundaries");
+  const parsedExpMetadata = parseJSONWithRetry<{
+    entries: { company: string; title: string; dates: string; location?: string }[];
+  }>(expResponse, "Experience Metadata");
 
-  const parsedExperience = (parsedExpStruct.entries || []).map((entry) => {
-    let bullets = extractBulletsFromBlock(entry.blockText);
+  const rawEntries = parsedExpMetadata.entries || [];
 
-    // Fallback if no bullet markers were found in blockText
-    if (bullets.length === 0 && entry.blockText) {
-      bullets = entry.blockText
+  // Find start indices for each experience entry deterministically via indexOf in experienceSourceText
+  const expStartIndices: number[] = [];
+  let lastExpIndex = 0;
+
+  for (const entry of rawEntries) {
+    let foundIdx = findStringIndex(experienceSourceText, entry.company, lastExpIndex);
+    if (foundIdx === -1 && entry.title) {
+      foundIdx = findStringIndex(experienceSourceText, entry.title, lastExpIndex);
+    }
+
+    if (foundIdx === -1) {
+      console.warn(
+        `[INDEX NOT FOUND WARNING] Could not find start index for experience entry '${entry.company}' / '${entry.title}' in experienceText. Falling back to offset ${lastExpIndex}.`
+      );
+      foundIdx = lastExpIndex;
+    } else {
+      lastExpIndex = foundIdx;
+    }
+
+    expStartIndices.push(foundIdx);
+  }
+
+  // Slice blockText in TypeScript code & extract bullets deterministically
+  const parsedExperience = rawEntries.map((entry, i) => {
+    const start = expStartIndices[i];
+    const end = i + 1 < rawEntries.length ? expStartIndices[i + 1] : experienceSourceText.length;
+    const blockText = experienceSourceText.substring(start, end);
+
+    let bullets = extractBulletsFromBlock(blockText);
+
+    if (bullets.length === 0 && blockText) {
+      bullets = blockText
         .split("\n")
         .map((l) => l.trim())
         .filter((l) => l.length > 0 && !l.includes(entry.company) && !l.includes(entry.title));
-    }
-
-    // Sanity Assertion
-    const rawLines = (entry.blockText || "").split("\n");
-    const markerCount = rawLines.filter((l) => BULLET_MARKER_REGEX.test(l)).length;
-    if (markerCount > 0 && markerCount !== bullets.length) {
-      console.warn(
-        `[BULLET SANITY WARNING] Mismatch in '${entry.company}': expected ${markerCount} bullets from markers, extracted ${bullets.length} bullets.`
-      );
     }
 
     return {
@@ -203,54 +267,60 @@ ${experienceSourceText}`;
     };
   });
 
-  // 2. LLM Boundary Call: Projects Structural Boundaries
+  // 2. Scoped LLM Call: Projects Entry Metadata ONLY (no blockText, no bullets)
   let parsedProjects: { name: string; bullets: string[]; url?: string; techStack?: string }[] = [];
   if (split.projectsText.length > 0) {
-    const projPrompt = `You are an expert resume parser. Identify structural boundaries for each project entry in the text provided below.
-For each project entry, return name, url (if present), techStack (if present), and blockText.
+    const projPrompt = `You are an expert resume parser. Identify project entry metadata in the projects text provided below.
+Return ONLY name, url (if present), and techStack (if present) for each project.
 
-blockText MUST be the exact raw text segment (copied character-for-character, unmodified) belonging to that project entry, INCLUDING all bullet lines exactly as they appear in the source text.
-
-Return ONLY a valid JSON object matching this exact shape:
+Return ONLY a valid JSON object matching this exact shape, with no markdown code fences:
 {
   "projects": [
     {
       "name": "string",
       "url": "string (optional)",
-      "techStack": "string (optional)",
-      "blockText": "string"
+      "techStack": "string (optional)"
     }
   ]
 }
-
-CRITICAL INSTRUCTIONS:
-- Copy blockText character-for-character from the source text. Do not rewrite, summarize, or paraphrase anything.
 
 Projects Text Block:
 ${split.projectsText}`;
 
     const projResponse = await callLLM(projPrompt, 0.1);
-    const parsedProjStruct = parseJSONWithRetry<{
-      projects: { name: string; url?: string; techStack?: string; blockText: string }[];
-    }>(projResponse, "Projects Boundaries");
+    const parsedProjMetadata = parseJSONWithRetry<{
+      projects: { name: string; url?: string; techStack?: string }[];
+    }>(projResponse, "Projects Metadata");
 
-    parsedProjects = (parsedProjStruct.projects || []).map((proj) => {
-      let bullets = extractBulletsFromBlock(proj.blockText);
+    const rawProjects = parsedProjMetadata.projects || [];
+    const projStartIndices: number[] = [];
+    let lastProjIndex = 0;
 
-      if (bullets.length === 0 && proj.blockText) {
-        bullets = proj.blockText
+    for (const proj of rawProjects) {
+      let foundIdx = findStringIndex(split.projectsText, proj.name, lastProjIndex);
+      if (foundIdx === -1) {
+        console.warn(
+          `[INDEX NOT FOUND WARNING] Could not find start index for project '${proj.name}' in projectsText. Falling back to offset ${lastProjIndex}.`
+        );
+        foundIdx = lastProjIndex;
+      } else {
+        lastProjIndex = foundIdx;
+      }
+      projStartIndices.push(foundIdx);
+    }
+
+    parsedProjects = rawProjects.map((proj, i) => {
+      const start = projStartIndices[i];
+      const end = i + 1 < rawProjects.length ? projStartIndices[i + 1] : split.projectsText.length;
+      const blockText = split.projectsText.substring(start, end);
+
+      let bullets = extractBulletsFromBlock(blockText);
+
+      if (bullets.length === 0 && blockText) {
+        bullets = blockText
           .split("\n")
           .map((l) => l.trim())
           .filter((l) => l.length > 0 && !l.includes(proj.name));
-      }
-
-      // Sanity Assertion
-      const rawLines = (proj.blockText || "").split("\n");
-      const markerCount = rawLines.filter((l) => BULLET_MARKER_REGEX.test(l)).length;
-      if (markerCount > 0 && markerCount !== bullets.length) {
-        console.warn(
-          `[BULLET SANITY WARNING] Mismatch in project '${proj.name}': expected ${markerCount} bullets from markers, extracted ${bullets.length} bullets.`
-        );
       }
 
       return {
@@ -329,7 +399,7 @@ ${split.certificationsText}`;
       .filter((l) => l.length > 0);
   }
 
-  return {
+  const finalResult: ResumeData = {
     sections: {
       summary: split.summaryText.length > 0 ? split.summaryText : undefined,
       experience: parsedExperience,
@@ -340,4 +410,9 @@ ${split.certificationsText}`;
       additional: parsedAdditional,
     },
   };
+
+  // 5. Run Last-Line Substring Verification
+  verifyBulletSubstrings(resumeText, finalResult);
+
+  return finalResult;
 }
