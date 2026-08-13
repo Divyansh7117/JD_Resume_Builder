@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { pdf } from "@react-pdf/renderer";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import ResumeDocument from "@/components/ResumeDocument";
@@ -75,12 +75,73 @@ export default function AppPage() {
   const [activeTab, setActiveTab] = useState<"diff" | "pdf">("diff");
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
+  // File Upload States
+  const [uploadingJd, setUploadingJd] = useState(false);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [jdFileName, setJdFileName] = useState<string | null>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+
+  const jdFileInputRef = useRef<HTMLInputElement>(null);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
+
   const canSubmit = jdText.trim().length > 0 && resumeText.trim().length > 0 && !loading;
 
   function loadSampleData() {
     setJdText(SAMPLE_JD);
     setResumeText(SAMPLE_RESUME);
+    setJdFileName(null);
+    setResumeFileName(null);
     setError(null);
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>, target: "jd" | "resume") {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isJd = target === "jd";
+    if (isJd) {
+      setUploadingJd(true);
+      setJdFileName(null);
+    } else {
+      setUploadingResume(true);
+      setResumeFileName(null);
+    }
+
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/extract-text", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Couldn't read that file. If it's a scanned/image-based PDF, please paste the text manually instead.");
+        return;
+      }
+
+      if (isJd) {
+        setJdText(data.text);
+        setJdFileName(file.name);
+      } else {
+        setResumeText(data.text);
+        setResumeFileName(file.name);
+      }
+    } catch {
+      setError("Couldn't read that file. If it's a scanned/image-based PDF, please paste the text manually instead.");
+    } finally {
+      if (isJd) {
+        setUploadingJd(false);
+      } else {
+        setUploadingResume(false);
+      }
+      e.target.value = "";
+    }
   }
 
   async function generatePdfBlobUrl(tailored: TailoredOutput, originalResume: ResumeData, tmplId: string) {
@@ -277,10 +338,45 @@ export default function AppPage() {
           <div className="flex flex-col md:flex-row">
             {/* JD pane */}
             <div className="flex-1 flex flex-col min-w-0">
-              <div className="editor-tab-label">Target Job Description</div>
+              <div className="editor-tab-label justify-between flex-wrap gap-2">
+                <span>Target Job Description</span>
+                <label className="cursor-pointer text-[10px] font-label px-2.5 py-1 rounded bg-[#161B22] border border-[#2A303C] hover:border-[#3654FF] text-[#9CA3AF] hover:text-white transition-all inline-flex items-center gap-1.5">
+                  {uploadingJd ? (
+                    <>
+                      <span className="loading-spinner" />
+                      <span>Extracting text…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>📁 upload file (.pdf, .docx, .txt)</span>
+                    </>
+                  )}
+                  <input
+                    ref={jdFileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, "jd")}
+                  />
+                </label>
+              </div>
+
+              {/* Upload Success Badge */}
+              {jdFileName && (
+                <div className="text-[11px] font-label text-[#1F9D6B] px-4 py-1.5 bg-[#1F9D6B]/10 border-b border-[#2A303C] flex items-center justify-between">
+                  <span>{jdFileName} uploaded ✓</span>
+                  <button
+                    onClick={() => setJdFileName(null)}
+                    className="text-[#9CA3AF] hover:text-white text-[10px]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               <textarea
                 className="editor-textarea flex-1"
-                placeholder="Paste the full job description here..."
+                placeholder="Paste the full job description or upload a file above..."
                 value={jdText}
                 onChange={(e) => setJdText(e.target.value)}
                 spellCheck={false}
@@ -293,10 +389,45 @@ export default function AppPage() {
 
             {/* Resume pane */}
             <div className="flex-1 flex flex-col min-w-0">
-              <div className="editor-tab-label">Your Candidate Resume</div>
+              <div className="editor-tab-label justify-between flex-wrap gap-2">
+                <span>Your Candidate Resume</span>
+                <label className="cursor-pointer text-[10px] font-label px-2.5 py-1 rounded bg-[#161B22] border border-[#2A303C] hover:border-[#3654FF] text-[#9CA3AF] hover:text-white transition-all inline-flex items-center gap-1.5">
+                  {uploadingResume ? (
+                    <>
+                      <span className="loading-spinner" />
+                      <span>Extracting text…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>📁 upload file (.pdf, .docx, .txt)</span>
+                    </>
+                  )}
+                  <input
+                    ref={resumeFileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, "resume")}
+                  />
+                </label>
+              </div>
+
+              {/* Upload Success Badge */}
+              {resumeFileName && (
+                <div className="text-[11px] font-label text-[#1F9D6B] px-4 py-1.5 bg-[#1F9D6B]/10 border-b border-[#2A303C] flex items-center justify-between">
+                  <span>{resumeFileName} uploaded ✓</span>
+                  <button
+                    onClick={() => setResumeFileName(null)}
+                    className="text-[#9CA3AF] hover:text-white text-[10px]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               <textarea
                 className="editor-textarea flex-1"
-                placeholder="Paste your full resume text here..."
+                placeholder="Paste your full resume text or upload a file above..."
                 value={resumeText}
                 onChange={(e) => setResumeText(e.target.value)}
                 spellCheck={false}
