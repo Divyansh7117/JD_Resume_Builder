@@ -1,8 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-import { parseResume, splitResumeIntoSections } from "../lib/parseResume";
-import { sampleResumeB, sampleResumeC } from "../samples/test-resumes";
+import { parseResume } from "../lib/parseResume";
 
 const divyanshResumeText = `
 Divyansh Agarwal
@@ -47,43 +46,19 @@ B.Tech – Computer Science Engineering (Data Science) | 2024 – 2028
 USICT, Guru Gobind Singh Indraprastha University · New Delhi
 `;
 
-async function testResume(label: string, text: string) {
-  console.log(`\n=======================================================`);
-  console.log(`TESTING: ${label}`);
-  console.log(`=======================================================`);
-
-  const split = splitResumeIntoSections(text);
-  console.log("SECTION DETECTOR SUMMARY:");
-  console.log(`- Summary Text Length: ${split.summaryText.length}`);
-  console.log(`- Experience Text Length: ${split.experienceText.length}`);
-  console.log(`- Projects Text Length: ${split.projectsText.length}`);
-  console.log(`- Skills Text Length: ${split.skillsText.length}`);
-  console.log(`- Education Text Length: ${split.educationText.length}`);
-
-  const parsed = await parseResume(text);
-
-  console.log("\nPARSED RESUME STRUCTURE:");
-  console.log(`- Experience Entries Count: ${parsed.sections.experience?.length || 0}`);
-  (parsed.sections.experience || []).forEach((exp, idx) => {
-    console.log(`  [Company ${idx + 1}] ${exp.company} (${exp.title}): ${exp.bullets.length} bullets`);
-  });
-
-  console.log(`- Projects Entries Count: ${parsed.sections.projects?.length || 0}`);
-  (parsed.sections.projects || []).forEach((proj, idx) => {
-    console.log(`  [Project ${idx + 1}] ${proj.name}: ${proj.bullets.length} bullets`);
-  });
-
-  console.log(`- Skills Extracted Count: ${parsed.sections.skills?.length || 0}`);
-
-  console.log("\nFULL PARSED JSON OUTPUT:");
-  console.log(JSON.stringify(parsed, null, 2));
-}
-
 async function main() {
   try {
-    await testResume("RESUME A: Real Divyansh Agarwal Resume", divyanshResumeText);
-    await testResume("RESUME B: Projects Before Experience, Dash Bullets, Single Paragraph Skills", sampleResumeB);
-    await testResume("RESUME C: Multiple Jobs, Mixed Headers, Inconsistent Spacing", sampleResumeC);
+    console.log("Parsing Divyansh Agarwal Resume...");
+    const result = await parseResume(divyanshResumeText);
+
+    console.log("\n=======================================================");
+    console.log("XOODRIP EXPERIENCE BULLETS (FULL ARRAY):");
+    console.log("=======================================================");
+    if (result.sections.experience && result.sections.experience[0]) {
+      console.log(JSON.stringify(result.sections.experience[0].bullets, null, 2));
+    } else {
+      console.log("No experience entries found.");
+    }
   } catch (err) {
     console.error("Test execution failed:", err);
   }
