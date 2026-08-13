@@ -8,9 +8,13 @@ export interface JDRequirements {
 
 export interface ResumeData {
   sections: {
-    experience: { company: string; title: string; bullets: string[]; dates: string }[];
-    projects: { name: string; bullets: string[] }[];
+    summary?: string;
+    experience: { company: string; title: string; bullets: string[]; dates: string; location?: string }[];
+    projects: { name: string; bullets: string[]; url?: string; techStack?: string }[];
+    education?: { institution: string; degree: string; dates: string; details?: string }[];
+    certifications?: string[];
     skills: string[];
+    additional?: string[];
   };
 }
 

@@ -153,9 +153,13 @@ export default function AppPage() {
       <ResumeDocument
         name={name}
         contact={contact}
+        summary={originalResume.sections.summary}
         experience={tailored.rewritten_experience}
         projects={originalResume.sections.projects}
+        education={originalResume.sections.education}
+        certifications={originalResume.sections.certifications}
         skills={tailored.rewritten_skills}
+        additional={originalResume.sections.additional}
         templateId={tmplId}
       />
     );

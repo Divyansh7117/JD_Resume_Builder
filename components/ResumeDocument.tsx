@@ -5,9 +5,12 @@ export interface ResumeDocumentProps {
   name: string;
   contact: string; // e.g. "email | phone | linkedin"
   summary?: string;
-  experience: { company: string; title: string; dates: string; bullets: string[] }[];
-  projects: { name: string; bullets: string[] }[];
+  experience: { company: string; title: string; dates: string; bullets: string[]; location?: string }[];
+  projects?: { name: string; bullets: string[]; url?: string; techStack?: string }[];
+  education?: { institution: string; degree: string; dates: string; details?: string }[];
+  certifications?: string[];
   skills: string[];
+  additional?: string[];
   templateId?: string;
 }
 
@@ -100,7 +103,7 @@ const academicStyles = StyleSheet.create({
 });
 
 export default function ResumeDocument(props: ResumeDocumentProps) {
-  const { name, contact, summary, experience, projects, skills, templateId = "ats-standard" } = props;
+  const { name, contact, summary, experience, projects, education, certifications, skills, additional, templateId = "ats-standard" } = props;
 
   // Render 1: Modern Sidebar Layout (Two Column)
   if (templateId === "modern-sidebar") {
@@ -343,10 +346,83 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
             ))}
           </View>
         ) : null}
+        {projects && projects.length > 0 ? (
+          <View style={standardStyles.section}>
+            <Text style={standardStyles.sectionTitle}>PROJECTS</Text>
+            {projects.map((proj, idx) => (
+              <View key={idx} style={{ marginBottom: 4 }} wrap={false}>
+                <View style={standardStyles.entryHeader}>
+                  <Text style={standardStyles.entryTitleCompany}>{proj.name}</Text>
+                  {proj.url && <Text style={standardStyles.entryDates}>{proj.url}</Text>}
+                </View>
+                {proj.techStack && (
+                  <Text style={{ fontSize: 9, fontStyle: "italic", marginBottom: 2 }}>Tech: {proj.techStack}</Text>
+                )}
+                <View style={{ marginTop: 2, marginBottom: 2 }}>
+                  {proj.bullets.map((bullet, bIdx) => (
+                    <View key={bIdx} style={standardStyles.bulletItem}>
+                      <Text style={standardStyles.bulletPoint}>•</Text>
+                      <Text style={standardStyles.bulletText}>{bullet}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
         {skills && skills.length > 0 ? (
           <View style={standardStyles.section}>
             <Text style={standardStyles.sectionTitle}>SKILLS</Text>
             <Text style={standardStyles.skillsText}>{skills.join(", ")}</Text>
+          </View>
+        ) : null}
+        {education && education.length > 0 ? (
+          <View style={standardStyles.section}>
+            <Text style={standardStyles.sectionTitle}>EDUCATION</Text>
+            {education.map((edu, idx) => (
+              <View key={idx} style={{ marginBottom: 4 }} wrap={false}>
+                <View style={standardStyles.entryHeader}>
+                  <Text style={standardStyles.entryTitleCompany}>
+                    {edu.degree} — {edu.institution}
+                  </Text>
+                  <Text style={standardStyles.entryDates}>{edu.dates}</Text>
+                </View>
+                {edu.details && (
+                  <View style={{ marginTop: 2, marginBottom: 2 }}>
+                    <View style={standardStyles.bulletItem}>
+                      <Text style={standardStyles.bulletPoint}>•</Text>
+                      <Text style={standardStyles.bulletText}>{edu.details}</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {certifications && certifications.length > 0 ? (
+          <View style={standardStyles.section}>
+            <Text style={standardStyles.sectionTitle}>CERTIFICATIONS</Text>
+            <View style={{ marginTop: 2, marginBottom: 2 }}>
+              {certifications.map((cert, cIdx) => (
+                <View key={cIdx} style={standardStyles.bulletItem}>
+                  <Text style={standardStyles.bulletPoint}>•</Text>
+                  <Text style={standardStyles.bulletText}>{cert}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+        {additional && additional.length > 0 ? (
+          <View style={standardStyles.section}>
+            <Text style={standardStyles.sectionTitle}>ADDITIONAL</Text>
+            <View style={{ marginTop: 2, marginBottom: 2 }}>
+              {additional.map((item, aIdx) => (
+                <View key={aIdx} style={standardStyles.bulletItem}>
+                  <Text style={standardStyles.bulletPoint}>•</Text>
+                  <Text style={standardStyles.bulletText}>{item}</Text>
+             </View>
+              ))}
+            </View>
           </View>
         ) : null}
       </Page>

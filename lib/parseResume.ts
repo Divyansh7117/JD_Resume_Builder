@@ -6,21 +6,35 @@ export async function parseResume(resumeText: string): Promise<ResumeData> {
 Return ONLY valid JSON matching this exact shape, with no markdown code fences, no explanation text, and no surrounding text:
 {
   "sections": {
+    "summary": "string (optional)",
     "experience": [
       {
         "company": "string",
         "title": "string",
         "bullets": ["string"],
-        "dates": "string"
+        "dates": "string",
+        "location": "string (optional)"
       }
     ],
     "projects": [
       {
         "name": "string",
-        "bullets": ["string"]
+        "bullets": ["string"],
+        "url": "string (optional)",
+        "techStack": "string (optional)"
       }
     ],
-    "skills": ["string"]
+    "education": [
+      {
+        "institution": "string",
+        "degree": "string",
+        "dates": "string",
+        "details": "string (optional)"
+      }
+    ],
+    "certifications": ["string"],
+    "skills": ["string"],
+    "additional": ["string (e.g. languages, methodologies)"]
   }
 }
 
