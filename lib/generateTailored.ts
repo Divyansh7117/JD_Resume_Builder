@@ -211,17 +211,30 @@ Return ONLY a valid JSON object with no markdown formatting, no code fences, and
     rewritten_skills: llmParsed.rewritten_skills,
   };
 
+  // Log bullet count comparison for attempt 1
+  console.log("\n--- ATTEMPT 1 BULLET COUNT COMPARISON ---");
+  for (const exp of candidateOutput.rewritten_experience || []) {
+    const orig = resume.sections?.experience?.find(
+      (e) => e.company.toLowerCase() === exp.company.toLowerCase()
+    );
+    console.log(
+      `Company '${exp.company}': Original Bullets = ${orig ? orig.bullets.length : "NOT FOUND"}, Rewritten Bullets = ${exp.bullets.length}`
+    );
+  }
+
   // Validate first attempt
   const validation1 = validateNoFabrication(resume, candidateOutput);
+  console.log("\n--- ATTEMPT 1 VALIDATION RESULT ---");
+  console.log(`Valid: ${validation1.valid}`);
+  console.log(`Issues (${validation1.issues.length}):`, validation1.issues);
+
   if (validation1.valid) {
+    console.log("\n[SUCCESS] Returning Attempt 1 Output.");
     return candidateOutput;
   }
 
   // Validation failed -> log warning and retry once
-  console.warn("Validation failed, retrying once:");
-  for (const issue of validation1.issues) {
-    console.warn(`- ${issue}`);
-  }
+  console.log("\n[RETRY TRIGGERED] Validation failed on Attempt 1. Executing retry attempt...");
 
   const retryPrompt = `${basePrompt}
 
@@ -241,12 +254,29 @@ Fix these by using ONLY the exact facts, numbers, and skills from the original r
     rewritten_skills: llmParsedRetry.rewritten_skills,
   };
 
+  // Log bullet count comparison for attempt 2
+  console.log("\n--- ATTEMPT 2 (RETRY) BULLET COUNT COMPARISON ---");
+  for (const exp of retryOutput.rewritten_experience || []) {
+    const orig = resume.sections?.experience?.find(
+      (e) => e.company.toLowerCase() === exp.company.toLowerCase()
+    );
+    console.log(
+      `Company '${exp.company}': Original Bullets = ${orig ? orig.bullets.length : "NOT FOUND"}, Rewritten Bullets = ${exp.bullets.length}`
+    );
+  }
+
   const validation2 = validateNoFabrication(resume, retryOutput);
+  console.log("\n--- ATTEMPT 2 (RETRY) VALIDATION RESULT ---");
+  console.log(`Valid: ${validation2.valid}`);
+  console.log(`Issues (${validation2.issues.length}):`, validation2.issues);
+
   if (!validation2.valid) {
+    console.log("\n[ERROR] Validation failed on Attempt 2. Throwing Error.");
     throw new Error(
       `Tailored content validation failed after retry:\n${validation2.issues.map((i) => `- ${i}`).join("\n")}`
     );
   }
 
+  console.log("\n[SUCCESS] Returning Attempt 2 (Retry) Output.");
   return retryOutput;
 }
