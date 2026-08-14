@@ -57,7 +57,8 @@ async function main() {
         "TypeScript",
         "Next.js",
         "Python" // Invented skill
-      ]
+      ],
+      used_fallback: false,
     };
 
     console.log("Validating deliberately BAD output against original resume...");

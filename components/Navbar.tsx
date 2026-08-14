@@ -29,9 +29,9 @@ export default function Navbar() {
       {/* Bottom glowing border accent */}
       <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#3654FF]/40 to-transparent" />
 
-      <div className="max-w-6xl mx-auto px-6 md:px-8 h-18 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 h-16 sm:h-18 flex items-center justify-between">
         {/* Left: Brand Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href="/" className="flex items-center gap-2 group max-w-[200px] sm:max-w-none shrink-0">
           <Logo />
         </Link>
 
@@ -54,18 +54,6 @@ export default function Navbar() {
                 </Link>
               );
             })}
-            {isSignedIn && (
-              <Link
-                href="/dashboard"
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                  pathname === "/dashboard"
-                    ? "bg-[#3654FF]/10 text-[#3654FF] border border-[#3654FF]/20 font-semibold"
-                    : "text-[#9CA3AF] hover:text-white hover:bg-[#161B22]"
-                }`}
-              >
-                Dashboard
-              </Link>
-            )}
           </nav>
 
           <div className="h-4 w-px bg-[#1C2333]" />
@@ -106,7 +94,7 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Hamburger Button */}
-        <div className="flex items-center gap-3 md:hidden">
+        <div className="flex items-center gap-2 md:hidden">
           {isSignedIn && (
             <UserButton
               appearance={{
@@ -118,7 +106,7 @@ export default function Navbar() {
           )}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-[#9CA3AF] hover:text-white focus:outline-none"
+            className="text-[#9CA3AF] hover:text-white focus:outline-none min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-[#161B22] transition-colors"
             aria-label="Toggle Menu"
           >
             <svg
@@ -149,33 +137,31 @@ export default function Navbar() {
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#0F1419] border-b border-[#1C2333] px-6 py-4 flex flex-col gap-3">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm text-[#9CA3AF] hover:text-white font-medium py-1"
-            >
-              {link.name}
-            </Link>
-          ))}
-          {isSignedIn && (
-            <Link
-              href="/dashboard"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-sm text-[#9CA3AF] hover:text-white font-medium py-1"
-            >
-              Dashboard
-            </Link>
-          )}
+        <div className="md:hidden bg-[#0F1419] border-b border-[#1C2333] px-4 sm:px-6 py-4 flex flex-col gap-2 shadow-2xl">
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`text-sm font-medium px-3.5 py-3 rounded-xl transition-all min-h-[44px] flex items-center ${
+                  isActive
+                    ? "bg-[#3654FF]/10 text-[#3654FF] border border-[#3654FF]/20 font-semibold"
+                    : "text-[#9CA3AF] hover:text-white hover:bg-[#161B22]"
+                }`}
+              >
+                {link.name}
+              </Link>
+            );
+          })}
           <div className="h-px bg-[#1C2333] my-1" />
           {!isSignedIn ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5 pt-1">
               <SignInButton mode="modal">
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full text-center text-sm text-[#9CA3AF] hover:text-white font-medium py-2 border border-[#1C2333] rounded-lg"
+                  className="w-full text-center text-sm text-[#9CA3AF] hover:text-white font-medium min-h-[44px] flex items-center justify-center border border-[#1C2333] rounded-xl hover:bg-[#161B22] transition-all cursor-pointer"
                 >
                   Sign In
                 </button>
@@ -183,9 +169,9 @@ export default function Navbar() {
               <SignUpButton mode="modal">
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full text-center text-sm font-medium bg-[#3654FF] text-white py-2 rounded-lg"
+                  className="w-full text-center text-sm font-heading font-semibold bg-gradient-to-r from-[#3654FF] to-[#5B73FF] text-white min-h-[44px] flex items-center justify-center rounded-xl shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
                 >
-                  Get Started
+                  Get Started Free
                 </button>
               </SignUpButton>
             </div>
@@ -193,9 +179,9 @@ export default function Navbar() {
             <Link
               href="/app"
               onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center text-sm font-medium bg-[#3654FF] text-white py-2 rounded-lg"
+              className="w-full text-center text-sm font-heading font-semibold bg-gradient-to-r from-[#3654FF] to-[#5B73FF] text-white min-h-[44px] flex items-center justify-center rounded-xl shadow-md shadow-indigo-500/20 transition-all mt-1"
             >
-              Go to Workspace
+              Go to Workspace →
             </Link>
           )}
         </div>

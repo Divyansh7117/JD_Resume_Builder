@@ -1,201 +1,36 @@
-import { JDRequirements, ResumeData, TailoredOutput } from "../types";
+import {
+  JDRequirements,
+  ResumeData,
+  TailoredOutput,
+  MatchAnalysis,
+  TailoredExperienceEntry,
+} from "../types";
 import { callLLM } from "./llm";
 import { validateNoFabrication } from "./validator";
+import { evaluateRequirementsAgainstEvidence } from "./semanticMatcher";
 
-// Tech Synonym and Alias Mapping for High Accuracy Skill Matching
-const SKILL_ALIASES: Record<string, string[]> = {
-  react: ["react.js", "reactjs", "react"],
-  "react.js": ["react", "reactjs"],
-  node: ["node.js", "nodejs", "node"],
-  "node.js": ["node", "nodejs"],
-  vue: ["vue.js", "vuejs", "vue"],
-  "vue.js": ["vue", "vuejs"],
-  next: ["next.js", "nextjs", "next"],
-  "next.js": ["next", "nextjs"],
-  express: ["express.js", "expressjs", "express"],
-  "express.js": ["express", "expressjs"],
-  typescript: ["ts", "typescript"],
-  ts: ["typescript", "ts"],
-  javascript: ["js", "javascript"],
-  js: ["javascript", "js"],
-  postgresql: ["postgres", "postgresql"],
-  postgres: ["postgresql", "postgres"],
-  mongodb: ["mongo", "mongodb"],
-  mongo: ["mongodb", "mongo"],
-  kubernetes: ["k8s", "kubernetes"],
-  k8s: ["kubernetes", "k8s"],
-  aws: ["amazon web services", "aws"],
-  "amazon web services": ["aws"],
-  "rest api": ["rest apis", "restful api", "restful apis", "rest", "rest api integration"],
-  "rest apis": ["rest api", "restful api", "restful apis", "rest"],
-  "ci/cd": ["cicd", "continuous integration", "continuous deployment"],
-};
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function cleanJsonString(raw: string): string {
+  return raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 }
 
-function buildWordBoundaryRegex(skillStr: string): RegExp {
-  const escaped = escapeRegex(skillStr);
-  const startsWithWordChar = /^\w/.test(skillStr);
-  const endsWithWordChar = /\w$/.test(skillStr);
-
-  const prefix = startsWithWordChar ? "\\b" : "";
-  const suffix = endsWithWordChar ? "\\b" : "";
-
-  return new RegExp(`${prefix}${escaped}${suffix}`, "i");
-}
-
-function getSkillVariants(str: string): string[] {
-  const lower = str.toLowerCase().trim();
-  const variants = new Set<string>([lower]);
-
-  const parenMatch = lower.match(/^(.*?)\s*\((.*?)\)$/);
-  if (parenMatch) {
-    if (parenMatch[1].trim()) variants.add(parenMatch[1].trim());
-    if (parenMatch[2].trim()) variants.add(parenMatch[2].trim());
-  }
-
-  const fluffRegex = /\b(integration|integrations|optimization|optimizations|architecture|design|development|testing|framework|library|services|service|tools|tool|expertise|proficiency|environments|environment)\b/gi;
-  const stripped = lower.replace(fluffRegex, "").trim();
-  if (stripped && stripped !== lower && stripped.length > 0) {
-    variants.add(stripped);
-  }
-
-  Array.from(variants).forEach((v) => {
-    if (SKILL_ALIASES[v]) {
-      SKILL_ALIASES[v].forEach((alias) => variants.add(alias));
-    }
-  });
-
-  return Array.from(variants);
-}
-
-export function computeSkillMatch(
-  jd: JDRequirements,
-  resume: ResumeData
-): {
-  matched_skills: string[];
-  missing_skills: string[];
-  match_score: number;
-} {
-  let rawJDSkills = [...(jd.must_have_skills || []), ...(jd.nice_to_have_skills || [])];
-
-  if (rawJDSkills.length === 0 && jd.keywords && jd.keywords.length > 0) {
-    rawJDSkills = jd.keywords;
-  }
-
-  const allJDSkills = Array.from(new Set(rawJDSkills));
-
-  const resumeSkills = resume.sections?.skills || [];
-  const experienceBullets = (resume.sections?.experience || []).flatMap(
-    (exp) => exp.bullets || []
-  );
-  const projectBullets = (resume.sections?.projects || []).flatMap(
-    (proj) => proj.bullets || []
-  );
-  const allBulletsText = [...experienceBullets, ...projectBullets]
-    .join(" ")
-    .toLowerCase();
-
-  const candidateSkillEntries = resumeSkills.map((s) => ({
-    original: s,
-    lower: s.toLowerCase().trim(),
-    variants: getSkillVariants(s),
-  }));
-
-  const matched_skills: string[] = [];
-  const missing_skills: string[] = [];
-
-  console.log("\n--- COMPUTE SKILL MATCH DETAILED LOG ---");
-  for (const skill of allJDSkills) {
-    const jdVariants = getSkillVariants(skill);
-
-    let matchReason: string | null = null;
-
-    for (const jdV of jdVariants) {
-      const isShortSkill = jdV.length <= 3;
-
-      // 1. Check against candidate skills
-      for (const candItem of candidateSkillEntries) {
-        for (const candV of candItem.variants) {
-          if (candV === jdV) {
-            matchReason = `Exact match against Candidate Skill "${candItem.original}" (variant: "${candV}")`;
-            break;
-          }
-
-          if (!isShortSkill) {
-            const regex = buildWordBoundaryRegex(jdV);
-            if (regex.test(candV)) {
-              matchReason = `Word-boundary regex /${regex.source}/i matched Candidate Skill "${candItem.original}" (variant: "${candV}")`;
-              break;
-            }
-          }
-        }
-        if (matchReason) break;
-      }
-      if (matchReason) break;
-
-      // 2. Check against resume bullets (only for skills > 3 characters)
-      if (!isShortSkill) {
-        const regex = buildWordBoundaryRegex(jdV);
-        if (regex.test(allBulletsText)) {
-          matchReason = `Word-boundary regex /${regex.source}/i matched Resume Bullets Text (JD Variant: "${jdV}")`;
-          break;
-        }
-      }
-    }
-
-    if (matchReason) {
-      console.log(`[MATCHED] JD Skill: "${skill}" -> ${matchReason}`);
-      matched_skills.push(skill);
-    } else {
-      console.log(`[MISSING] JD Skill: "${skill}" -> No match found in candidate skills or bullets`);
-      missing_skills.push(skill);
-    }
-  }
-
-  const totalJDSkills = allJDSkills.length;
-  const match_score =
-    totalJDSkills > 0
-      ? Math.round((matched_skills.length / totalJDSkills) * 100)
-      : 50;
-
-  return {
-    matched_skills,
-    missing_skills,
-    match_score,
-  };
-}
-
-interface LLMTailoredSection {
-  rewritten_summary: string;
-  rewritten_experience: {
-    company: string;
-    title: string;
-    dates: string;
-    bullets: string[];
-  }[];
-  rewritten_skills: string[];
-}
-
-function parseLLMResponse(responseText: string): LLMTailoredSection {
+function parseLLMResponse(raw: string): Partial<TailoredOutput> {
+  const cleaned = cleanJsonString(raw);
   try {
-    return JSON.parse(responseText) as LLMTailoredSection;
-  } catch (_initialError) {
-    const cleanedText = responseText
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-    try {
-      return JSON.parse(cleanedText) as LLMTailoredSection;
-    } catch (retryError) {
-      console.error("Failed to parse raw LLM output:", responseText);
-      const errMessage =
-        retryError instanceof Error ? retryError.message : String(retryError);
-      throw new Error(`Failed to parse generated TailoredOutput JSON: ${errMessage}`);
+    return JSON.parse(cleaned);
+  } catch {
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (err) {
+        console.error("Failed to parse matched JSON substring:", err);
+      }
     }
+    console.error("Failed to parse LLM response as JSON:", raw);
+    return {};
   }
 }
 
@@ -203,38 +38,93 @@ export async function generateTailoredContent(
   jd: JDRequirements,
   resume: ResumeData
 ): Promise<TailoredOutput> {
-  const skillMatch = computeSkillMatch(jd, resume);
+  // Step 1: Semantic evidence evaluation & deterministic scoring
+  const matchAnalysis: MatchAnalysis = await evaluateRequirementsAgainstEvidence(jd, resume);
 
-  const basePrompt = `You are an expert ATS Resume Customization Engineer. Your goal is to tailor the candidate's resume so it MAXIMUM MATCHES the target Job Description (JD) while remaining 100% TRUTHFUL to the candidate's real experience.
+  // ─── PART 1: Filter zero-bullet entries before sending to LLM ───
+  const allExperience = resume.sections?.experience || [];
+  const allProjects = resume.sections?.projects || [];
 
-JOB DESCRIPTION REQUIREMENTS:
+  // Track which indices are passthrough (0 bullets) vs rewritable (1+ bullets)
+  const experiencePassthroughIndices: number[] = [];
+  const rewritableExperience: typeof allExperience = [];
+  for (let i = 0; i < allExperience.length; i++) {
+    if (allExperience[i].bullets.length === 0) {
+      experiencePassthroughIndices.push(i);
+      console.log(`[FILTER] Experience '${allExperience[i].company}' has 0 bullets — excluded from LLM prompt, will pass through unchanged.`);
+    } else {
+      rewritableExperience.push(allExperience[i]);
+    }
+  }
+
+  const projectPassthroughIndices: number[] = [];
+  const rewritableProjects: typeof allProjects = [];
+  for (let i = 0; i < allProjects.length; i++) {
+    if (allProjects[i].bullets.length === 0) {
+      projectPassthroughIndices.push(i);
+      console.log(`[FILTER] Project '${allProjects[i].name}' has 0 bullets — excluded from LLM prompt, will pass through unchanged.`);
+    } else {
+      rewritableProjects.push(allProjects[i]);
+    }
+  }
+
+  // Build a filtered copy of resume for the LLM prompt — only rewritable entries
+  const filteredResume: ResumeData = {
+    ...resume,
+    sections: {
+      ...resume.sections,
+      experience: rewritableExperience,
+      projects: rewritableProjects,
+    },
+  };
+
+  const basePrompt = `You are an elite Executive Resume Strategist & ATS Optimization Specialist. Your mission is to elevate the candidate's resume to the TOP 1% of applicants for the target role (${jd.role_title}) while maintaining 100% TRUTHFULNESS to their genuine experience.
+
+TARGET JOB DESCRIPTION:
 - Target Role Title: ${jd.role_title}
-- Must-Have Skills: ${JSON.stringify(jd.must_have_skills || [])}
-- Nice-to-Have Skills: ${JSON.stringify(jd.nice_to_have_skills || [])}
-- Core Keywords: ${JSON.stringify(jd.keywords || [])}
-- Matched Candidate Skills: ${JSON.stringify(skillMatch.matched_skills)}
+- Verified Matched Skills / Requirements: ${JSON.stringify(matchAnalysis.matched_skills)}
+- Evaluated Requirements: ${JSON.stringify(
+    matchAnalysis.evaluations.map((e) => ({
+      name: e.requirement_name,
+      importance: e.importance,
+      status: e.status,
+      evidence_ids: e.evidence_ids,
+      evidence: e.evidence.map((ev) => ev.text),
+    })),
+    null,
+    2
+  )}
 
 CANDIDATE RESUME DATA:
-${JSON.stringify(resume, null, 2)}
+${JSON.stringify(filteredResume, null, 2)}
 
-TAILORING INSTRUCTIONS (HIGH JD ALIGNMENT):
-1. FOR SUMMARY ("rewritten_summary"):
-   - Lightly rephrase the ORIGINAL summary (${JSON.stringify(resume.summary)}) to emphasize alignment with the JD's role_title (${jd.role_title}) and top must_have_skills.
-   - Do not change the candidate's stated professional title or identity (e.g. 'Full Stack Developer') to match the job title in the JD, even if it seems like a better fit. You may rephrase supporting details and emphasis, but the core professional identity stated in the original summary must remain unchanged. Also do not drop or alter any parenthetical specialization (e.g. '(Data Science)') that appears in the original.
-   - Only reorder, trim, or lightly rephrase words and claims already present in the original summary. Do not add any skill, technology, or achievement not already mentioned in the original summary text, even if it appears elsewhere on the resume.
+TAILORING & PROVENANCE RULES:
 
-2. FOR EXPERIENCE BULLETS ("rewritten_experience"):
-   - For each work experience entry, reorder the bullets so that bullets containing matched JD skills/keywords appear FIRST (#1 and #2).
-   - Each rewritten bullet may ONLY reorder, trim, or lightly rephrase the words already present in that specific original bullet. Do not pull in any skill, tool, or technology name from elsewhere in the resume into a bullet where it did not originally appear, even if that skill is truthfully listed on the resume elsewhere.
-   - Maintain the EXACT bullet count, company name, title, and date range for each company entry. DO NOT SKIP ANY COMPANY OR EXPERIENCE ENTRY.
-   - Do NOT invent any company, title, date range, metric, or achievement not present in the original resume.
+1. PROFESSIONAL SUMMARY ("rewritten_summary"):
+   - Craft a punchy, high-impact 3-4 sentence executive summary that positions the candidate as a top-tier fit for '${jd.role_title}'.
+   - Rephrase the candidate's genuine background, years of experience, and signature strengths from the original summary.
+   - Highlight the largest scale metrics already mentioned in the original summary.
+   - Do NOT insert additional skill names into the summary that were not originally mentioned in the original summary text.
 
-3. FOR REORDERED SKILLS LIST ("rewritten_skills"):
-   - Place all JD Matched Skills (${JSON.stringify(skillMatch.matched_skills)}) at the VERY TOP of the array.
-   - Follow with all remaining candidate skills.
-   - Do NOT add any skill that was not originally present in the candidate's resume.
+2. EXPERIENCE BULLETS ("rewritten_experience"):
+   - For EACH work experience entry:
+     a. REORDER: Place the most relevant accomplishments and highest-metric bullets FIRST (#1 and #2).
+     b. WRITING QUALITY & OUTCOMES:
+        - Prioritize: (1) JD relevance, (2) factual accuracy, (3) measurable outcomes, (4) clarity, (5) natural professional language, and (6) ATS readability.
+        - Treat the Google XYZ formula ("Accomplished [X] as measured by [Y], by doing [Z]") as an OPTIONAL heuristic.
+        - Upgrade passive wording with strong, authoritative action verbs (e.g., "Scaled", "Spearheaded", "Architected", "Optimized", "Orchestrated", "Pioneered", "Accelerated", "Engineered").
+     c. JD ALIGNMENT: Where the candidate's real work matches JD requirements (e.g. storefronts, conversion funnels, A/B testing, cohort analysis, microservices, real-time data), frame the bullet using industry-standard precision terminology.
+     d. PRESERVE ALL ORIGINAL METRICS & QUALITATIVE CLAIMS: Every number, metric, percentage, company name, title, and date range from the original bullet MUST be preserved faithfully and accurately. Do NOT invent fake numbers, fictional team sizes, or unverified geographic/platform scope.
+     e. EXACT BULLET COUNT: Return the EXACT same number of bullets for each company entry as was provided in the input.
+     f. BULLET PROVENANCE: For every rewritten bullet, include "source_evidence_ids" referencing the candidate's original evidence units supporting the bullet.
 
-Return ONLY a valid JSON object with no markdown formatting, no code fences, and no explanation text matching this JSON shape:
+3. REORDERED SKILLS LIST ("rewritten_skills"):
+   - Reorder the candidate's EXACT original skills array (${JSON.stringify(resume.sections?.skills || [])}).
+   - Prioritize candidate skills that align with the target role at the front of the array.
+   - Every item in "rewritten_skills" MUST be chosen verbatim from the candidate's original skills list (${JSON.stringify(resume.sections?.skills || [])}).
+   - Do NOT invent new skill titles or substitute JD requirement names.
+
+Return ONLY a valid JSON object matching this exact JSON shape, with no markdown code fences and no explanations:
 {
   "rewritten_summary": "string",
   "rewritten_experience": [
@@ -242,40 +132,82 @@ Return ONLY a valid JSON object with no markdown formatting, no code fences, and
       "company": "string",
       "title": "string",
       "dates": "string",
-      "bullets": ["string"]
+      "bullets": ["string"],
+      "bullet_provenance": [
+        {
+          "bullet": "string",
+          "source_evidence_ids": ["ev_exp_1_1"]
+        }
+      ]
     }
   ],
   "rewritten_skills": ["string"]
+}
+
+${
+  experiencePassthroughIndices.length > 0
+    ? `IMPORTANT: The following company entries had 0 bullets and were excluded: ${experiencePassthroughIndices
+        .map((i) => allExperience[i].company)
+        .join(", ")}. Do NOT add entries for them.`
+    : ""
 }`;
+
+  function mergeExperienceWithPassthrough(
+    rewrittenFromLLM: TailoredExperienceEntry[]
+  ): TailoredExperienceEntry[] {
+    const merged: TailoredExperienceEntry[] = [];
+    let llmIdx = 0;
+
+    for (let origIdx = 0; origIdx < allExperience.length; origIdx++) {
+      if (experiencePassthroughIndices.includes(origIdx)) {
+        const orig = allExperience[origIdx];
+        merged.push({
+          company: orig.company,
+          title: orig.title,
+          dates: orig.dates,
+          bullets: [],
+          bullet_provenance: [],
+        });
+      } else {
+        if (llmIdx < rewrittenFromLLM.length) {
+          merged.push(rewrittenFromLLM[llmIdx]);
+          llmIdx++;
+        }
+      }
+    }
+
+    return merged;
+  }
 
   // First LLM attempt
   const responseText = await callLLM(basePrompt, 0.2);
   const llmParsed = parseLLMResponse(responseText);
 
   const candidateOutput: TailoredOutput = {
-    matched_skills: skillMatch.matched_skills,
-    missing_skills: skillMatch.missing_skills,
-    match_score: skillMatch.match_score,
+    match_score: matchAnalysis.match_score,
+    confidence_score: matchAnalysis.confidence_score,
+    match_analysis: matchAnalysis,
+    matched_skills: matchAnalysis.matched_skills,
+    missing_skills: matchAnalysis.missing_skills,
     rewritten_summary: llmParsed.rewritten_summary || resume.summary,
-    rewritten_experience: llmParsed.rewritten_experience,
-    rewritten_skills: llmParsed.rewritten_skills,
+    rewritten_experience: mergeExperienceWithPassthrough(
+      (llmParsed.rewritten_experience as TailoredExperienceEntry[]) || rewritableExperience
+    ),
+    rewritten_skills: llmParsed.rewritten_skills && Array.isArray(llmParsed.rewritten_skills) && llmParsed.rewritten_skills.length > 0
+      ? llmParsed.rewritten_skills
+      : resume.sections?.skills || [],
+    used_fallback: false,
   };
 
-  // Log bullet count comparison for attempt 1
-  console.log("\n--- ATTEMPT 1 BULLET COUNT COMPARISON ---");
-  for (const exp of candidateOutput.rewritten_experience || []) {
-    const orig = resume.sections?.experience?.find(
-      (e) => e.company.toLowerCase() === exp.company.toLowerCase()
-    );
-    console.log(
-      `Company '${exp.company}': Original Bullets = ${orig ? orig.bullets.length : "NOT FOUND"}, Rewritten Bullets = ${exp.bullets.length}`
-    );
-  }
-
-  // Validate first attempt
+  // Run Validator
   const validation1 = validateNoFabrication(resume, candidateOutput);
+  console.log("\n--- ATTEMPT 1 BULLET COUNT COMPARISON ---");
+  for (const exp of candidateOutput.rewritten_experience) {
+    const origExp = allExperience.find((e) => e.company.toLowerCase() === exp.company.toLowerCase());
+    console.log(`Company '${exp.company}': Original Bullets = ${origExp?.bullets.length ?? 0}, Rewritten Bullets = ${exp.bullets.length}`);
+  }
   console.log("\n--- ATTEMPT 1 VALIDATION RESULT ---");
-  console.log(`Valid: ${validation1.valid}`);
+  console.log("Valid:", validation1.valid);
   console.log(`Issues (${validation1.issues.length}):`, validation1.issues);
 
   if (validation1.valid) {
@@ -283,51 +215,62 @@ Return ONLY a valid JSON object with no markdown formatting, no code fences, and
     return candidateOutput;
   }
 
-  // Validation failed -> log warning and retry once
-  console.log("\n[RETRY TRIGGERED] Validation failed on Attempt 1. Executing retry attempt...");
-
+  // Attempt 2 Retry with specific issue feedback
+  console.warn("\n[RETRY] Attempt 1 failed validation. Retrying with explicit feedback...");
   const retryPrompt = `${basePrompt}
 
-CRITICAL FIX REQUIRED:
-Your previous output had these problems:
-${validation1.issues.map((issue) => `- ${issue}`).join("\n")}
-Fix these by using ONLY the exact facts, numbers, and skills from the original resume data provided. Do not invent anything.`;
+CRITICAL: Your previous response FAILED validation with the following issues. Fix EVERY issue listed below. Do NOT repeat them:
+${validation1.issues.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
 
-  const retryResponseText = await callLLM(retryPrompt, 0.2);
-  const llmParsedRetry = parseLLMResponse(retryResponseText);
+Ensure exact bullet counts, exact company names, exact dates, exact metrics, and zero hallucinated numbers or qualitative claims.`;
+
+  const responseText2 = await callLLM(retryPrompt, 0.1);
+  const llmParsed2 = parseLLMResponse(responseText2);
 
   const retryOutput: TailoredOutput = {
-    matched_skills: skillMatch.matched_skills,
-    missing_skills: skillMatch.missing_skills,
-    match_score: skillMatch.match_score,
-    rewritten_summary: llmParsedRetry.rewritten_summary || resume.summary,
-    rewritten_experience: llmParsedRetry.rewritten_experience,
-    rewritten_skills: llmParsedRetry.rewritten_skills,
+    match_score: matchAnalysis.match_score,
+    confidence_score: matchAnalysis.confidence_score,
+    match_analysis: matchAnalysis,
+    matched_skills: matchAnalysis.matched_skills,
+    missing_skills: matchAnalysis.missing_skills,
+    rewritten_summary: llmParsed2.rewritten_summary || candidateOutput.rewritten_summary,
+    rewritten_experience: mergeExperienceWithPassthrough(
+      (llmParsed2.rewritten_experience as TailoredExperienceEntry[]) || candidateOutput.rewritten_experience
+    ),
+    rewritten_skills: llmParsed2.rewritten_skills && Array.isArray(llmParsed2.rewritten_skills) && llmParsed2.rewritten_skills.length > 0
+      ? llmParsed2.rewritten_skills
+      : candidateOutput.rewritten_skills,
+    used_fallback: false,
   };
 
-  // Log bullet count comparison for attempt 2
-  console.log("\n--- ATTEMPT 2 (RETRY) BULLET COUNT COMPARISON ---");
-  for (const exp of retryOutput.rewritten_experience || []) {
-    const orig = resume.sections?.experience?.find(
-      (e) => e.company.toLowerCase() === exp.company.toLowerCase()
-    );
-    console.log(
-      `Company '${exp.company}': Original Bullets = ${orig ? orig.bullets.length : "NOT FOUND"}, Rewritten Bullets = ${exp.bullets.length}`
-    );
-  }
-
   const validation2 = validateNoFabrication(resume, retryOutput);
-  console.log("\n--- ATTEMPT 2 (RETRY) VALIDATION RESULT ---");
-  console.log(`Valid: ${validation2.valid}`);
+  console.log("\n--- ATTEMPT 2 VALIDATION RESULT ---");
+  console.log("Valid:", validation2.valid);
   console.log(`Issues (${validation2.issues.length}):`, validation2.issues);
 
-  if (!validation2.valid) {
-    console.log("\n[ERROR] Validation failed on Attempt 2. Throwing Error.");
-    throw new Error(
-      `Tailored content validation failed after retry:\n${validation2.issues.map((i) => `- ${i}`).join("\n")}`
-    );
+  if (validation2.valid) {
+    console.log("\n[SUCCESS] Attempt 2 passed validation.");
+    return retryOutput;
   }
 
-  console.log("\n[SUCCESS] Returning Attempt 2 (Retry) Output.");
-  return retryOutput;
+  // Deterministic Fallback if both attempts fail
+  console.warn("\n[FALLBACK] Both LLM attempts failed validation. Falling back to deterministic baseline.");
+  return {
+    match_score: matchAnalysis.match_score,
+    confidence_score: matchAnalysis.confidence_score,
+    match_analysis: matchAnalysis,
+    matched_skills: matchAnalysis.matched_skills,
+    missing_skills: matchAnalysis.missing_skills,
+    rewritten_summary: resume.summary,
+    rewritten_experience: allExperience.map((exp) => ({
+      company: exp.company,
+      title: exp.title,
+      dates: exp.dates,
+      bullets: [...exp.bullets],
+      bullet_provenance: exp.bullets.map((b) => ({ bullet: b, source_evidence_ids: [] })),
+      location: exp.location,
+    })),
+    rewritten_skills: resume.sections?.skills || [],
+    used_fallback: true,
+  };
 }
