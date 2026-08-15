@@ -8,6 +8,7 @@ import {
 import { callLLM } from "./llm";
 import { validateNoFabrication } from "./validator";
 import { evaluateRequirementsAgainstEvidence } from "./semanticMatcher";
+import { getCachedTailoredOutput } from "./cache";
 
 function cleanJsonString(raw: string): string {
   return raw
@@ -36,12 +37,31 @@ function parseLLMResponse(raw: string): Partial<TailoredOutput> {
 
 export async function generateTailoredContent(
   jd: JDRequirements,
-  resume: ResumeData
+  resume: ResumeData,
+  bypassCache: boolean = false
+): Promise<TailoredOutput> {
+  const jdKey = JSON.stringify(jd);
+  const resumeKey = JSON.stringify(resume);
+
+  return getCachedTailoredOutput(
+    jdKey,
+    resumeKey,
+    async () => {
+      return executeDirectTailoring(jd, resume, bypassCache);
+    },
+    bypassCache
+  );
+}
+
+async function executeDirectTailoring(
+  jd: JDRequirements,
+  resume: ResumeData,
+  bypassCache: boolean = false
 ): Promise<TailoredOutput> {
   // Step 1: Semantic evidence evaluation & deterministic scoring
-  const matchAnalysis: MatchAnalysis = await evaluateRequirementsAgainstEvidence(jd, resume);
+  const matchAnalysis: MatchAnalysis = await evaluateRequirementsAgainstEvidence(jd, resume, bypassCache);
 
-  // ─── PART 1: Filter zero-bullet entries before sending to LLM ───
+  // Filter zero-bullet entries before sending to LLM
   const allExperience = resume.sections?.experience || [];
   const allProjects = resume.sections?.projects || [];
 
@@ -180,7 +200,7 @@ ${
   }
 
   // First LLM attempt
-  const responseText = await callLLM(basePrompt, 0.2);
+  const responseText = await callLLM(basePrompt, 0.0);
   const llmParsed = parseLLMResponse(responseText);
 
   const candidateOutput: TailoredOutput = {
@@ -224,7 +244,7 @@ ${validation1.issues.map((issue, idx) => `${idx + 1}. ${issue}`).join("\n")}
 
 Ensure exact bullet counts, exact company names, exact dates, exact metrics, and zero hallucinated numbers or qualitative claims.`;
 
-  const responseText2 = await callLLM(retryPrompt, 0.1);
+  const responseText2 = await callLLM(retryPrompt, 0.0);
   const llmParsed2 = parseLLMResponse(responseText2);
 
   const retryOutput: TailoredOutput = {

@@ -446,9 +446,337 @@ async function runFullAdversarialSuite() {
     console.error(`  ❌ [FAIL] Test J: Keyword-rich irrelevant resume scored artificially high: Score = ${resJ.match_score}%`);
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEST K — Python for ML vs Python for Financial Reporting
+  // ───────────────────────────────────────────────────────────────────────────
+  total++;
+  console.log("\n▶ Test K: Python for ML vs Python for Financial Reporting...");
+  const jdK: JDRequirements = {
+    role_title: "Machine Learning Engineer",
+    seniority_signal: "Mid",
+    must_have_skills: ["Machine Learning with Python"],
+    nice_to_have_skills: [],
+    keywords: ["Machine Learning", "PyTorch", "Python"],
+    summary_keywords: ["Machine Learning", "PyTorch", "Python"],
+    requirements: [
+      { id: "r1", name: "Machine Learning with Python", description: "Deep learning model training with PyTorch / TensorFlow in Python", category: "ai", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "SINGLE" },
+    ],
+  };
+
+  const resumeK: ResumeData = {
+    contact: { name: "Finance Dev", email: "finance@example.com", phone: "123", location: "Remote", links: [] },
+    summary: "Python developer specializing in financial data reporting.",
+    sections: {
+      experience: [
+        {
+          company: "FinCorp",
+          title: "Python Automation Engineer",
+          dates: "2022 – Present",
+          bullets: ["Wrote Python scripts using pandas and openpyxl to generate monthly financial P&L spreadsheets."],
+        },
+      ],
+      projects: [],
+      skills: ["Python", "Excel", "Pandas", "Automation"],
+      education: [],
+      certifications: [],
+    },
+  };
+
+  const resK = await evaluateRequirementsAgainstEvidence(jdK, resumeK);
+  const evalK = resK.evaluations[0];
+  if (evalK && evalK.status !== "strong_match" && evalK.score < 1.0) {
+    console.log(`  ✅ [PASS] Test K: Python for financial scripting not equated to deep ML (${evalK.status}, Score: ${evalK.score}).`);
+    passed++;
+  } else {
+    console.error(`  ❌ [FAIL] Test K: Python for finance was incorrectly given strong_match for ML:`, evalK);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEST L — Collaboration vs People Management
+  // ───────────────────────────────────────────────────────────────────────────
+  total++;
+  console.log("\n▶ Test L: Collaboration vs People Management...");
+  const jdL: JDRequirements = {
+    role_title: "Engineering Manager",
+    seniority_signal: "Manager",
+    must_have_skills: ["People Management"],
+    nice_to_have_skills: [],
+    keywords: ["People Management"],
+    summary_keywords: ["People Management"],
+    requirements: [
+      { id: "r1", name: "People Management", description: "Direct people management, performance evaluations, and hiring for 5+ engineers", category: "leadership", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "SINGLE" },
+    ],
+  };
+
+  const resumeL: ResumeData = {
+    contact: { name: "Collaborator", email: "collab@example.com", phone: "123", location: "Remote", links: [] },
+    summary: "Senior IC developer.",
+    sections: {
+      experience: [
+        {
+          company: "Tech Corp",
+          title: "Senior Software Engineer",
+          dates: "2021 – Present",
+          bullets: ["Collaborated cross-functionally with 4 backend engineers and UI designers to ship features."],
+        },
+      ],
+      projects: [],
+      skills: ["Collaboration", "Agile", "TypeScript"],
+      education: [],
+      certifications: [],
+    },
+  };
+
+  const resL = await evaluateRequirementsAgainstEvidence(jdL, resumeL);
+  const evalL = resL.evaluations[0];
+  if (evalL && evalL.status !== "strong_match" && evalL.score < 1.0) {
+    console.log(`  ✅ [PASS] Test L: Team collaboration not equated to direct people management (${evalL.status}, Score: ${evalL.score}).`);
+    passed++;
+  } else {
+    console.error(`  ❌ [FAIL] Test L: Team collaboration was given strong_match for People Management:`, evalL);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEST M — Engineering Optimization vs Product Growth
+  // ───────────────────────────────────────────────────────────────────────────
+  total++;
+  console.log("\n▶ Test M: Engineering Optimization vs Product Growth...");
+  const jdM: JDRequirements = {
+    role_title: "Growth Product Manager",
+    seniority_signal: "Mid",
+    must_have_skills: ["Product Growth & Funnel Optimization"],
+    nice_to_have_skills: [],
+    keywords: ["Growth", "Funnels", "Activation"],
+    summary_keywords: ["Growth", "Funnels", "Activation"],
+    requirements: [
+      { id: "r1", name: "Product Growth & Funnel Optimization", description: "Owning user acquisition, conversion funnels, and viral activation loops", category: "product_growth", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "SINGLE" },
+    ],
+  };
+
+  const resumeM: ResumeData = {
+    contact: { name: "Backend Dev", email: "perf@example.com", phone: "123", location: "Remote", links: [] },
+    summary: "Full Stack Engineer optimizing systems.",
+    sections: {
+      experience: [
+        {
+          company: "Social App",
+          title: "Full Stack Developer",
+          dates: "2023 – Present",
+          bullets: [
+            "Optimized MongoDB aggregation pipelines, cutting API response time from 1.2s to 180ms.",
+            "Improved Lighthouse performance score from 62 to 88 via asset compression.",
+          ],
+        },
+      ],
+      projects: [],
+      skills: ["Performance Optimization", "MongoDB", "Node.js"],
+      education: [],
+      certifications: [],
+    },
+  };
+
+  const resM = await evaluateRequirementsAgainstEvidence(jdM, resumeM);
+  const evalM = resM.evaluations[0];
+  if (evalM && evalM.status !== "strong_match") {
+    console.log(`  ✅ [PASS] Test M: Engineering optimization not equated to product growth (${evalM.status}, Score: ${evalM.score}).`);
+    passed++;
+  } else {
+    console.error(`  ❌ [FAIL] Test M: Engineering optimization was mistakenly given strong_match for product growth:`, evalM);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEST N — Application Development vs Product Management
+  // ───────────────────────────────────────────────────────────────────────────
+  total++;
+  console.log("\n▶ Test N: Application Development vs Product Management...");
+  const jdN: JDRequirements = {
+    role_title: "Product Manager",
+    seniority_signal: "Mid",
+    must_have_skills: ["Product Strategy & Roadmap"],
+    nice_to_have_skills: [],
+    keywords: ["Product Strategy", "PRDs", "Roadmaps"],
+    summary_keywords: ["Product Strategy", "PRDs", "Roadmaps"],
+    requirements: [
+      { id: "r1", name: "Product Strategy & Roadmap", description: "Authoring PRDs, roadmap prioritization, and customer discovery", category: "product_management", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "SINGLE" },
+    ],
+  };
+
+  const resumeN: ResumeData = {
+    contact: { name: "Full Stack Dev", email: "dev@example.com", phone: "123", location: "Remote", links: [] },
+    summary: "Full Stack Developer building web applications.",
+    sections: {
+      experience: [
+        {
+          company: "Web Startup",
+          title: "Software Engineer",
+          dates: "2022 – Present",
+          bullets: ["Implemented Next.js frontend components and Express REST API endpoints."],
+        },
+      ],
+      projects: [],
+      skills: ["React", "Node.js", "Express"],
+      education: [],
+      certifications: [],
+    },
+  };
+
+  const resN = await evaluateRequirementsAgainstEvidence(jdN, resumeN);
+  const evalN = resN.evaluations[0];
+  if (evalN && evalN.status !== "strong_match") {
+    console.log(`  ✅ [PASS] Test N: Writing code not equated to Product Management strategy (${evalN.status}, Score: ${evalN.score}).`);
+    passed++;
+  } else {
+    console.error(`  ❌ [FAIL] Test N: Writing code was given strong_match for Product Strategy:`, evalN);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEST O — Raw Analytics Tools vs Product Analytics
+  // ───────────────────────────────────────────────────────────────────────────
+  total++;
+  console.log("\n▶ Test O: Raw Analytics Tools vs Product Analytics...");
+  const jdO: JDRequirements = {
+    role_title: "Product Analytics Lead",
+    seniority_signal: "Senior",
+    must_have_skills: ["Cohort Retention & Funnel Drop-off Analysis"],
+    nice_to_have_skills: [],
+    keywords: ["Cohort Analysis", "Retention", "Funnel"],
+    summary_keywords: ["Cohort Analysis", "Retention", "Funnel"],
+    requirements: [
+      { id: "r1", name: "Cohort Retention & Funnel Drop-off Analysis", description: "Designing cohort retention curves and diagnosing product funnel drop-offs", category: "analytics", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "SINGLE" },
+    ],
+  };
+
+  const resumeO: ResumeData = {
+    contact: { name: "SQL Writer", email: "sql@example.com", phone: "123", location: "Remote", links: [] },
+    summary: "Database query writer.",
+    sections: {
+      experience: [
+        {
+          company: "Data Corp",
+          title: "Junior Data Operator",
+          dates: "2023 – Present",
+          bullets: ["Wrote basic SQL SELECT queries and formatted Power BI report tables."],
+        },
+      ],
+      projects: [],
+      skills: ["SQL", "Power BI", "Excel"],
+      education: [],
+      certifications: [],
+    },
+  };
+
+  const resO = await evaluateRequirementsAgainstEvidence(jdO, resumeO);
+  const evalO = resO.evaluations[0];
+  if (evalO && evalO.status !== "strong_match") {
+    console.log(`  ✅ [PASS] Test O: Raw SQL query writing not equated to deep cohort retention analysis (${evalO.status}, Score: ${evalO.score}).`);
+    passed++;
+  } else {
+    console.error(`  ❌ [FAIL] Test O: Raw SQL writing was given strong_match for Cohort Analysis:`, evalO);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEST P — React vs React + TypeScript
+  // ───────────────────────────────────────────────────────────────────────────
+  total++;
+  console.log("\n▶ Test P: React vs React + TypeScript...");
+  const jdP: JDRequirements = {
+    role_title: "TypeScript React Developer",
+    seniority_signal: "Mid",
+    must_have_skills: ["React with TypeScript"],
+    nice_to_have_skills: [],
+    keywords: ["React", "TypeScript"],
+    summary_keywords: ["React", "TypeScript"],
+    requirements: [
+      { id: "r1", name: "React with TypeScript", description: "Strictly typed React application development using TypeScript interfaces and generics", category: "frontend", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "SINGLE" },
+    ],
+  };
+
+  const resumeP: ResumeData = {
+    contact: { name: "JS Dev", email: "js@example.com", phone: "123", location: "Remote", links: [] },
+    summary: "Frontend Developer using JavaScript.",
+    sections: {
+      experience: [
+        {
+          company: "UI Agency",
+          title: "React Developer",
+          dates: "2022 – Present",
+          bullets: ["Built interactive web components using React.js and vanilla JavaScript."],
+        },
+      ],
+      projects: [],
+      skills: ["React", "JavaScript", "HTML", "CSS"], // NO TypeScript
+      education: [],
+      certifications: [],
+    },
+  };
+
+  const resP = await evaluateRequirementsAgainstEvidence(jdP, resumeP);
+  const evalP = resP.evaluations[0];
+  if (evalP && evalP.status !== "strong_match") {
+    console.log(`  ✅ [PASS] Test P: Vanilla React without TypeScript evaluated as partial/weak (${evalP.status}, Score: ${evalP.score}).`);
+    passed++;
+  } else {
+    console.error(`  ❌ [FAIL] Test P: Vanilla React was mistakenly given strong_match for React + TypeScript:`, evalP);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEST Q — Logical Operators (AND vs OR)
+  // ───────────────────────────────────────────────────────────────────────────
+  total++;
+  console.log("\n▶ Test Q: Logical Operators (AND vs OR)...");
+  const jdQ: JDRequirements = {
+    role_title: "Cloud & Polyglot Engineer",
+    seniority_signal: "Mid",
+    must_have_skills: [],
+    nice_to_have_skills: [],
+    keywords: [],
+    summary_keywords: [],
+    requirements: [
+      { id: "r_or", name: "AWS OR Google Cloud", description: "Experience with either AWS or Google Cloud Platform", category: "cloud", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "OR" },
+      { id: "r_and", name: "React AND Rust", description: "Full-stack development in React AND systems programming in Rust", category: "fullstack", requirement_type: "skill_capability", importance: "required", criticality: "hard", logical_operator: "AND" },
+    ],
+  };
+
+  const resumeQ: ResumeData = {
+    contact: { name: "Cloud Dev", email: "cloud@example.com", phone: "123", location: "Remote", links: [] },
+    summary: "Full stack developer with AWS and React experience.",
+    sections: {
+      experience: [
+        {
+          company: "Cloud Co",
+          title: "Cloud Developer",
+          dates: "2021 – Present",
+          bullets: [
+            "Architected scalable cloud backends on AWS (Lambda, S3, DynamoDB).",
+            "Built responsive Single Page Applications with React.js.",
+          ],
+        },
+      ],
+      projects: [],
+      skills: ["AWS", "React", "JavaScript"], // Has AWS (satisfies OR), has React but NO Rust (partial for AND)
+      education: [],
+      certifications: [],
+    },
+  };
+
+  const resQ = await evaluateRequirementsAgainstEvidence(jdQ, resumeQ);
+  const evalOr = resQ.evaluations.find((e) => e.requirement_id === "r_or");
+  const evalAnd = resQ.evaluations.find((e) => e.requirement_id === "r_and");
+
+  const orPassed = evalOr && evalOr.status === "strong_match";
+  const andPassed = evalAnd && evalAnd.status !== "strong_match" && evalAnd.score <= 0.6;
+
+  if (orPassed && andPassed) {
+    console.log(`  ✅ [PASS] Test Q: OR satisfied with 1 option (${evalOr?.status}), AND penalized for missing Rust (${evalAnd?.status}, score: ${evalAnd?.score}).`);
+    passed++;
+  } else {
+    console.error(`  ❌ [FAIL] Test Q: Logical operator handling failed: OR=${evalOr?.status}, AND=${evalAnd?.status} (score: ${evalAnd?.score})`);
+  }
+
   console.log("\n═════════════════════════════════════════════════════════════════");
   console.log(`  COMPREHENSIVE ADVERSARIAL RESULTS: ${passed}/${total} PASSED`);
   console.log("═════════════════════════════════════════════════════════════════\n");
+
 
   if (passed !== total) {
     process.exit(1);

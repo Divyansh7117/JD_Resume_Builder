@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { pdf } from "@react-pdf/renderer";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import ResumeDocument from "@/components/ResumeDocument";
+import { extractCleanName } from "@/lib/parseResume";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { TailoredOutput, ResumeData } from "@/types";
@@ -452,7 +453,7 @@ export default function AppPage() {
 
   async function generatePdfBlobUrl(tailored: TailoredOutput, originalResume: ResumeData, tmplId: string) {
     const contactInfo = originalResume.contact;
-    const name = contactInfo?.name || "Your Name";
+    const name = extractCleanName(contactInfo?.name || "Your Name");
     const contactParts = [
       contactInfo?.email,
       contactInfo?.phone,
@@ -460,7 +461,7 @@ export default function AppPage() {
       ...(contactInfo?.links || []),
     ].filter(Boolean);
 
-    const contactStr = contactParts.join(" | ");
+    const contactStr = contactParts.join(" • ");
 
     const doc = (
       <ResumeDocument
@@ -493,23 +494,32 @@ export default function AppPage() {
     };
   }, [selectedTemplateId, result]);
 
-  // Animated generation progress stages simulator
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+
+  // Live real-time 2-minute progress timer & stage progression
   useEffect(() => {
     if (!loading) {
+      setElapsedSeconds(0);
       setLoadingStage(0);
       return;
     }
 
-    const t1 = setTimeout(() => setLoadingStage(1), 600);
-    const t2 = setTimeout(() => setLoadingStage(2), 1600);
-    const t3 = setTimeout(() => setLoadingStage(3), 3200);
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => {
+        const next = prev + 1;
+        // Dynamically advance stages based on elapsed time (up to 120s window)
+        if (next < 10) setLoadingStage(0);
+        else if (next < 25) setLoadingStage(1);
+        else if (next < 50) setLoadingStage(2);
+        else if (next < 80) setLoadingStage(3);
+        else setLoadingStage(4);
+        return next;
+      });
+    }, 1000);
 
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    return () => clearInterval(interval);
   }, [loading]);
+
 
   async function handleSubmit() {
     setLoading(true);
@@ -915,58 +925,143 @@ export default function AppPage() {
           </div>
         )}
 
-        {/* ── ANIMATED PROCESSING HUD ── */}
+        {/* ── ANIMATED PROCESSING HUD WITH 2-MINUTE LIVE TIMER ── */}
         <AnimatePresence>
           {loading && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="cyber-card-glow p-4 sm:p-5 space-y-3"
+              exit={{ opacity: 0, y: -12 }}
+              className="cyber-card-glow p-5 sm:p-6 space-y-4 border border-[#3654FF]/40 shadow-2xl bg-[#0B0F17]/95"
             >
-              <div className="flex items-center justify-between border-b border-[#232D3F] pb-2.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="loading-spinner w-4 h-4" />
-                  <span className="font-heading font-bold text-white text-xs sm:text-sm">
-                    Processing Dynamic Intelligence Pipeline
+              {/* Header with Live Status & Countdown Timer */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#232D3F] pb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex items-center justify-center">
+                    <span className="loading-spinner w-5 h-5 text-[#00F0FF]" />
+                    <span className="absolute w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
+                      <span>Tailoring & Analyzing Fit…</span>
+                    </h3>
+                    <p className="text-[11px] text-[#94A3B8] font-label">
+                      Multi-pass AI evaluation & bullet optimization in progress
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live 2-Minute Timer Display */}
+                <div className="flex items-center gap-2.5 self-start sm:self-auto bg-[#070A10] px-3.5 py-1.5 rounded-xl border border-[#232D3F]">
+                  <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-white">
+                    <span className="text-[#00F0FF]">{Math.floor(elapsedSeconds / 60)}:{(elapsedSeconds % 60).toString().padStart(2, "0")}</span>
+                    <span className="text-[#64748B]">/ 2:00 max</span>
+                  </div>
+                  <span className="text-[10px] font-label text-[#94A3B8] border-l border-[#232D3F] pl-2 hidden sm:inline">
+                    ~{Math.max(0, 120 - elapsedSeconds)}s est. remaining
                   </span>
                 </div>
-                <span className="font-label text-xs text-[#00F0FF] font-bold animate-pulse">
-                  GEMINI 2.5 LLM ENGINE
-                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs font-label">
-                <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${loadingStage >= 0 ? "bg-[#0C1018] border-[#10B981]/50 text-white" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
-                  <span className={loadingStage > 0 ? "text-[#10B981] font-bold" : "text-[#3654FF]"}>{loadingStage > 0 ? "✓" : "⟳"}</span>
-                  <span className="truncate">1. Requirement Extraction</span>
+              {/* Dynamic 5-Stage Step Checklist */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs font-label">
+                <div className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${loadingStage >= 0 ? "bg-[#0C1018] border-[#10B981]/50 text-white shadow-sm shadow-emerald-500/10" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
+                  <span className={loadingStage > 0 ? "text-[#10B981] font-bold text-sm" : "text-[#3654FF] animate-spin text-sm"}>
+                    {loadingStage > 0 ? "✓" : "⟳"}
+                  </span>
+                  <div className="truncate">
+                    <div className="font-bold text-[11px]">1. JD Deconstruct</div>
+                    <div className="text-[9px] text-[#94A3B8] truncate">Extract atomic reqs</div>
+                  </div>
                 </div>
-                <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${loadingStage >= 1 ? "bg-[#0C1018] border-[#10B981]/50 text-white" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
-                  <span className={loadingStage > 1 ? "text-[#10B981] font-bold" : "text-[#3654FF]"}>{loadingStage > 1 ? "✓" : "⟳"}</span>
-                  <span className="truncate">2. Semantic Vector Match</span>
+
+                <div className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${loadingStage >= 1 ? "bg-[#0C1018] border-[#10B981]/50 text-white shadow-sm shadow-emerald-500/10" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
+                  <span className={loadingStage > 1 ? "text-[#10B981] font-bold text-sm" : loadingStage === 1 ? "text-[#3654FF] animate-spin text-sm" : "text-[#475569] text-sm"}>
+                    {loadingStage > 1 ? "✓" : loadingStage === 1 ? "⟳" : "○"}
+                  </span>
+                  <div className="truncate">
+                    <div className="font-bold text-[11px]">2. Resume Parsing</div>
+                    <div className="text-[9px] text-[#94A3B8] truncate">Compile evidence units</div>
+                  </div>
                 </div>
-                <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${loadingStage >= 2 ? "bg-[#0C1018] border-[#10B981]/50 text-white" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
-                  <span className={loadingStage > 2 ? "text-[#10B981] font-bold" : "text-[#3654FF]"}>{loadingStage > 2 ? "✓" : "⟳"}</span>
-                  <span className="truncate">3. Provenance Verification</span>
+
+                <div className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${loadingStage >= 2 ? "bg-[#0C1018] border-[#10B981]/50 text-white shadow-sm shadow-emerald-500/10" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
+                  <span className={loadingStage > 2 ? "text-[#10B981] font-bold text-sm" : loadingStage === 2 ? "text-[#3654FF] animate-spin text-sm" : "text-[#475569] text-sm"}>
+                    {loadingStage > 2 ? "✓" : loadingStage === 2 ? "⟳" : "○"}
+                  </span>
+                  <div className="truncate">
+                    <div className="font-bold text-[11px]">3. Semantic Match</div>
+                    <div className="text-[9px] text-[#94A3B8] truncate">Dense vector retrieval</div>
+                  </div>
                 </div>
-                <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${loadingStage >= 3 ? "bg-[#0C1018] border-[#10B981]/50 text-white" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
-                  <span className="text-[#3654FF]">⟳</span>
-                  <span className="truncate">4. ATS PDF Compilation</span>
+
+                <div className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${loadingStage >= 3 ? "bg-[#0C1018] border-[#10B981]/50 text-white shadow-sm shadow-emerald-500/10" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
+                  <span className={loadingStage > 3 ? "text-[#10B981] font-bold text-sm" : loadingStage === 3 ? "text-[#3654FF] animate-spin text-sm" : "text-[#475569] text-sm"}>
+                    {loadingStage > 3 ? "✓" : loadingStage === 3 ? "⟳" : "○"}
+                  </span>
+                  <div className="truncate">
+                    <div className="font-bold text-[11px]">4. Experience Rewrite</div>
+                    <div className="text-[9px] text-[#94A3B8] truncate">Tailor impact bullets</div>
+                  </div>
+                </div>
+
+                <div className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${loadingStage >= 4 ? "bg-[#0C1018] border-[#10B981]/50 text-white shadow-sm shadow-emerald-500/10" : "bg-[#0C1018]/50 border-[#232D3F] text-[#64748B]"}`}>
+                  <span className={loadingStage >= 4 ? "text-[#3654FF] animate-spin text-sm" : "text-[#475569] text-sm"}>
+                    {loadingStage >= 4 ? "⟳" : "○"}
+                  </span>
+                  <div className="truncate">
+                    <div className="font-bold text-[11px]">5. PDF Verification</div>
+                    <div className="text-[9px] text-[#94A3B8] truncate">Hallucination check</div>
+                  </div>
                 </div>
               </div>
 
-              {/* Glowing progress line */}
-              <div className="w-full h-1 bg-[#0C1018] rounded-full overflow-hidden border border-[#232D3F]">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-[#3654FF] via-[#00F0FF] to-[#10B981]"
-                  initial={{ width: "15%" }}
-                  animate={{ width: loadingStage === 0 ? "30%" : loadingStage === 1 ? "60%" : loadingStage === 2 ? "85%" : "98%" }}
-                  transition={{ duration: 0.4 }}
-                />
+              {/* Continuous Progress Bar */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] font-label text-[#94A3B8]">
+                  <span>Overall Pipeline Progress</span>
+                  <span className="font-mono text-[#00F0FF] font-bold">
+                    {Math.min(96, Math.max(10, Math.round(
+                      elapsedSeconds < 10 ? 10 + (elapsedSeconds / 10) * 15 :
+                      elapsedSeconds < 25 ? 25 + ((elapsedSeconds - 10) / 15) * 25 :
+                      elapsedSeconds < 50 ? 50 + ((elapsedSeconds - 25) / 25) * 25 :
+                      elapsedSeconds < 80 ? 75 + ((elapsedSeconds - 50) / 30) * 15 :
+                      90 + Math.min(6, ((elapsedSeconds - 80) / 40) * 6)
+                    )))}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-[#070A10] rounded-full overflow-hidden border border-[#232D3F] shadow-inner">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-[#3654FF] via-[#00F0FF] to-[#10B981] shadow-lg shadow-cyan-500/30"
+                    style={{
+                      width: `${Math.min(96, Math.max(10, Math.round(
+                        elapsedSeconds < 10 ? 10 + (elapsedSeconds / 10) * 15 :
+                        elapsedSeconds < 25 ? 25 + ((elapsedSeconds - 10) / 15) * 25 :
+                        elapsedSeconds < 50 ? 50 + ((elapsedSeconds - 25) / 25) * 25 :
+                        elapsedSeconds < 80 ? 75 + ((elapsedSeconds - 50) / 30) * 15 :
+                        90 + Math.min(6, ((elapsedSeconds - 80) / 40) * 6)
+                      )))}%`
+                    }}
+                    transition={{ duration: 0.3, ease: "linear" }}
+                  />
+                </div>
+              </div>
+
+              {/* Reassuring Live Activity Footer */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[11px] text-[#94A3B8] border-t border-[#232D3F]/60">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-ping" />
+                  <span>Deep AI semantic auditing is active. Evaluations typically take 25–45s (up to 2 min under peak load).</span>
+                </div>
+                <div className="text-[10px] text-[#64748B] shrink-0 font-label">
+                  Please keep this tab open
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+
 
         {/* ── RESULTS INTELLIGENCE DASHBOARD (SMOOTH SCROLL TARGET) ── */}
         {result && (

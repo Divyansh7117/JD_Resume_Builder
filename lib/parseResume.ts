@@ -1,5 +1,6 @@
 import { ResumeData, ContactInfo, EducationEntry, CertificationEntry, CandidateEvidenceUnit } from "../types";
 import { callLLM } from "./llm";
+import { getCachedParsedResume } from "./cache";
 
 export interface SplitSections {
   summaryText: string;
@@ -14,13 +15,54 @@ export interface SplitSections {
 const BULLET_MARKER_REGEX = /^[\s\t]*[•●\-\*▪○▸\+–—\>]\s*|^[\s\t]*\d+[\.\)]\s+/;
 
 /**
+ * Extracts and cleans the candidate's name from the header line,
+ * removing markdown symbols, delimiters, email addresses, phone numbers, and URLs.
+ */
+export function extractCleanName(rawLine: string): string {
+  if (!rawLine) return "Candidate Name";
+
+  let cleaned = rawLine
+    .replace(/^[\s\#\*\_\`\>\-]+/, "")
+    .replace(/[\s\#\*\_\`\>\-]+$/, "")
+    .replace(/^Name\s*:\s*/i, "")
+    .trim();
+
+  // If the line contains standard delimiters (| , • , · , \t), check the first segment
+  const delimiterMatch = cleaned.match(/[\s\t]*[|•·\t][\s\t]*/);
+  if (delimiterMatch) {
+    const parts = cleaned.split(/[\s\t]*[|•·\t][\s\t]*/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      const first = parts[0];
+      if (
+        !first.includes("@") &&
+        !/(?:\+\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}/.test(first) &&
+        !/(?:http|\.com|\.org|\.io|\.dev|\.in)/i.test(first) &&
+        first.length <= 50
+      ) {
+        cleaned = first;
+      }
+    }
+  }
+
+  // Remove any trailing or inline email, phone, or links if still present
+  cleaned = cleaned
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "")
+    .replace(/(?:\+\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}[-.\s]?\d{3,5}/g, "")
+    .replace(/(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?/gi, "")
+    .replace(/^[,\s•|\-–—]+|[,\s•|\-–—]+$/g, "")
+    .trim();
+
+  return cleaned || rawLine.trim() || "Candidate Name";
+}
+
+/**
  * Deterministically extracts contact info using regex for email, phone, links, and name from top line.
  * Location is passed in after a scoped top-5-line LLM check.
  */
 export function extractContactInfo(resumeText: string, location: string): ContactInfo {
   const lines = resumeText.split("\n");
   const firstNonEmptyLine = lines.find((l) => l.trim().length > 0)?.trim() || "";
-  const name = firstNonEmptyLine;
+  const name = extractCleanName(firstNonEmptyLine);
 
   // Email regex
   const emailMatch = resumeText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
@@ -283,7 +325,20 @@ function verifyBulletSubstrings(resumeText: string, data: ResumeData): void {
   }
 }
 
-export async function parseResume(resumeText: string): Promise<ResumeData> {
+export async function parseResume(
+  resumeText: string,
+  bypassCache: boolean = false
+): Promise<ResumeData> {
+  return getCachedParsedResume(
+    resumeText,
+    async () => {
+      return executeDirectResumeParsing(resumeText);
+    },
+    bypassCache
+  );
+}
+
+async function executeDirectResumeParsing(resumeText: string): Promise<ResumeData> {
   const split = splitResumeIntoSections(resumeText);
 
   // 1. Scoped LLM Prompt 1: Experience AND Projects Entry Metadata & Bullets in ONE consolidated call
@@ -395,16 +450,12 @@ CRITICAL EXTRACTION INSTRUCTIONS:
 Skills Text Block:
 ${skillsSourceText}`;
 
-  // Execute consolidated section LLM calls concurrently (3 calls total)
-  const [
-    expProjResponse,
-    eduCertLocResponse,
-    skillsResponse,
-  ] = await Promise.all([
-    callLLM(expProjPrompt, 0.1),
-    callLLM(eduCertLocPrompt, 0.1),
-    callLLM(skillsPrompt, 0.1),
-  ]);
+  // Execute consolidated section LLM calls SEQUENTIALLY to respect free-tier rate limits.
+  // (Parallel calls exhaust the 10 RPM quota and cause cascading 429 retries.)
+  const expProjResponse = await callLLM(expProjPrompt, 0.0);
+  const eduCertLocResponse = await callLLM(eduCertLocPrompt, 0.0);
+  const skillsResponse = await callLLM(skillsPrompt, 0.0);
+
 
   // Process Location, Education, and Certifications from consolidated response
   let extractedLocation = "";

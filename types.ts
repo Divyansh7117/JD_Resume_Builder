@@ -31,6 +31,7 @@ export interface JDRequirement {
   criticality?: RequirementCriticality; // "hard" | "soft" | "preferred"
   logical_operator?: "AND" | "OR" | "AT_LEAST_ONE" | "SINGLE";
   sub_requirements?: string[];
+  weight?: number;
 }
 
 export interface JDRequirements {
@@ -93,6 +94,7 @@ export interface RequirementMatchResult {
   requirement_type?: RequirementType;
   importance: RequirementImportance;
   criticality: RequirementCriticality;
+  weight?: number;
   status: MatchStatus;
   score: number; // 1.0 (strong), 0.6 (partial), 0.3 (weak), 0.0 (none)
   confidence: number; // 0.0 to 1.0

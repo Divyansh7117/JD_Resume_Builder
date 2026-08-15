@@ -20,22 +20,11 @@ import {
   checkExactTechMatch,
   areTechnologiesIncompatible,
   isGenericSkillForSpecificTech,
-  normalizeTechName,
 } from "./techMatcher";
+import { getCachedMatchAnalysis } from "./cache";
+import { IMPORTANCE_WEIGHTS, CRITICALITY_WEIGHT_MULTIPLIER, computeRequirementWeight } from "./extractJD";
 
-export const IMPORTANCE_WEIGHTS: Record<RequirementImportance, number> = {
-  required: 3.0,
-  high: 2.0,
-  medium: 1.5,
-  low: 1.0,
-  preferred: 1.0,
-};
-
-export const CRITICALITY_WEIGHT_MULTIPLIER: Record<RequirementCriticality, number> = {
-  hard: 1.5,
-  soft: 1.0,
-  preferred: 0.8,
-};
+export { IMPORTANCE_WEIGHTS, CRITICALITY_WEIGHT_MULTIPLIER };
 
 export const STATUS_SCORES: Record<MatchStatus, number> = {
   strong_match: 1.0,
@@ -81,7 +70,7 @@ export function calculatePureDeterministicScores(structuredResults: RequirementM
     for (const req of dimReqs) {
       const baseW = IMPORTANCE_WEIGHTS[req.importance] || 1.0;
       const critMult = CRITICALITY_WEIGHT_MULTIPLIER[req.criticality] || 1.0;
-      const w = baseW * critMult;
+      const w = req.weight !== undefined && req.weight > 0 ? req.weight : Number((baseW * critMult).toFixed(2));
 
       dimReqWeightSum += w;
       dimReqScoreSum += w * req.score;
@@ -103,7 +92,7 @@ export function calculatePureDeterministicScores(structuredResults: RequirementM
     dimensions.push({
       id: `dim_${dimKey}`,
       name: formatDimensionName(dimKey),
-      weight: Number(dimReqWeightSum.toFixed(1)),
+      weight: Number(dimReqWeightSum.toFixed(2)),
       requirement_ids: dimReqs.map((r) => r.requirement_id),
       dimension_score: Math.round(dimScore),
     });
@@ -111,7 +100,7 @@ export function calculatePureDeterministicScores(structuredResults: RequirementM
 
   const match_score = totalOverallWeightSum > 0
     ? Math.round(totalOverallWeightedScoreSum / totalOverallWeightSum)
-    : 50;
+    : 0;
 
   const hard_requirement_match_score = totalHardWeightSum > 0
     ? Math.round(totalHardWeightedScoreSum / totalHardWeightSum)
@@ -119,12 +108,12 @@ export function calculatePureDeterministicScores(structuredResults: RequirementM
 
   const preferred_requirement_match_score = totalPrefWeightSum > 0
     ? Math.round(totalPrefWeightedScoreSum / totalPrefWeightSum)
-    : 100;
+    : 0;
 
   const audit_trail: AuditTrailEntry[] = structuredResults.map((r) => {
     const baseW = IMPORTANCE_WEIGHTS[r.importance] || 1.0;
     const critMult = CRITICALITY_WEIGHT_MULTIPLIER[r.criticality] || 1.0;
-    const w = baseW * critMult;
+    const w = r.weight !== undefined && r.weight > 0 ? r.weight : Number((baseW * critMult).toFixed(2));
     const contribution_percent = totalOverallWeightSum > 0
       ? Number(((w * r.score * 100) / totalOverallWeightSum).toFixed(1))
       : 0;
@@ -137,7 +126,7 @@ export function calculatePureDeterministicScores(structuredResults: RequirementM
       evidence_ids: r.evidence_ids || [],
       status: r.status,
       score: r.score,
-      weight: Number(w.toFixed(1)),
+      weight: Number(w.toFixed(2)),
       contribution_percent,
     };
   });
@@ -252,7 +241,21 @@ export async function retrieveTopRelevantEvidence(
     scoredUnits.push({ unit, score });
   }
 
-  scoredUnits.sort((a, b) => b.score - a.score);
+  // 100% deterministic 3-tier tie-breaking:
+  // 1. Primary: Semantic / lexical score (descending)
+  // 2. Secondary: Exact length comparison
+  // 3. Tertiary: Lexical sort by immutable unit.id
+  scoredUnits.sort((a, b) => {
+    const scoreDiff = b.score - a.score;
+    if (Math.abs(scoreDiff) > 0.0001) {
+      return scoreDiff;
+    }
+    const aLen = a.unit.text.length;
+    const bLen = b.unit.text.length;
+    if (aLen !== bLen) return bLen - aLen;
+    return a.unit.id.localeCompare(b.unit.id);
+  });
+
   return scoredUnits.slice(0, topK).map((s) => s.unit);
 }
 
@@ -343,20 +346,43 @@ export function calculateDatedRoleTenure(resume: ResumeData): {
 
 export async function evaluateRequirementsAgainstEvidence(
   jd: JDRequirements,
+  resume: ResumeData,
+  bypassCache: boolean = false
+): Promise<MatchAnalysis> {
+  const jdKey = JSON.stringify(jd);
+  const resumeKey = JSON.stringify(resume);
+
+  return getCachedMatchAnalysis(
+    jdKey,
+    resumeKey,
+    async () => {
+      return executeDirectEvaluation(jd, resume);
+    },
+    bypassCache
+  );
+}
+
+async function executeDirectEvaluation(
+  jd: JDRequirements,
   resume: ResumeData
 ): Promise<MatchAnalysis> {
   const allRequirements: JDRequirement[] = jd.requirements && jd.requirements.length > 0
     ? jd.requirements
-    : (jd.must_have_skills || []).map((name, i) => ({
-        id: `req_${i + 1}`,
-        name,
-        description: `Experience and proficiency with ${name}`,
-        category: "core_competency",
-        requirement_type: "skill_capability" as const,
-        importance: "required" as const,
-        criticality: "hard" as const,
-        logical_operator: "SINGLE" as const,
-      }));
+    : (jd.must_have_skills || []).map((name, i) => {
+        const id = `req_${i + 1}`;
+        const weight = computeRequirementWeight("required", "hard");
+        return {
+          id,
+          name,
+          description: `Experience and proficiency with ${name}`,
+          category: "core_competency",
+          requirement_type: "skill_capability" as const,
+          importance: "required" as const,
+          criticality: "hard" as const,
+          weight,
+          logical_operator: "SINGLE" as const,
+        };
+      });
 
   const evidenceUnits: CandidateEvidenceUnit[] = resume.evidence_units && resume.evidence_units.length > 0
     ? resume.evidence_units
@@ -374,7 +400,7 @@ export async function evaluateRequirementsAgainstEvidence(
     evidenceUnits.map((u) => getCachedSemanticEmbedding(`${u.text} ${u.source_title || ""}`))
   );
 
-  // Retrieve top relevant evidence for each requirement
+  // Retrieve top relevant evidence for each requirement using 100% deterministic tie-breaking
   const requirementsWithEvidence = await Promise.all(
     allRequirements.map(async (req) => {
       const topEvidence = await retrieveTopRelevantEvidence(req, evidenceUnits, evidenceEmbeddings, 6);
@@ -415,11 +441,26 @@ CRITICAL EVALUATION & PROVENANCE PROTOCOL:
    - The application will automatically resolve the exact original text from the provided evidence_ids.
 
 2. RIGOROUS CALIBRATION & CONCEPT DISTINCTION:
+   - PYTHON FOR ML VS. PYTHON FOR SCRIPTING/FINANCIAL REPORTING:
+     * If JD asks for Machine Learning / AI (PyTorch, TensorFlow, Scikit-Learn) and candidate only uses Python for scripting, financial reporting, or basic data wrangling -> evaluate as "partial_match" (0.6) or "weak_evidence" (0.3), never "strong_match".
+   - COLLABORATION VS. PEOPLE MANAGEMENT:
+     * Cross-functional collaboration, stakeholder communication, or pair programming is NOT People Management. If JD requires People Management (direct reports, team leadership, hiring, performance reviews) and candidate only has collaboration evidence -> evaluate as "weak_evidence" (0.3) or "partial_match" (0.6).
    - AI-POWERED PRODUCTS VS. AI PERSONALIZATION:
-     * AI-Powered Products: Agentic AI/LLM workflows, content pipelines, or LLM bots $\rightarrow$ evaluate as strong_match (1.0).
+     * AI-Powered Products: Agentic AI/LLM workflows, content pipelines, or LLM bots -> evaluate as strong_match (1.0).
      * AI Personalization / Recommendation Engines: Do NOT infer personalization merely from general AI/LLM workflows. If candidate lacks dedicated recommendation engines / personalization ML models, evaluate as "partial_match" (0.6) or "weak_evidence" (0.3).
    - CONSUMER EMPATHY VS. OUTCOME METRICS:
      * NPS > 70 is an outcome metric. If candidate has User Research or storefront experience without deep psychological motivation / anxiety research, evaluate as "partial_match" (0.6).
+   - ENGINEERING OPTIMIZATION VS. PRODUCT GROWTH:
+     * Engineering optimization (e.g. database query caching, cursor pagination, reducing API latency, Lighthouse scores) is technical performance engineering, NOT product growth (conversion funnel optimization, activation experiments, user acquisition viral loops).
+   - APPLICATION DEVELOPMENT VS. PRODUCT MANAGEMENT:
+     * Writing full-stack code or shipping features as a software engineer is NOT Product Management (defining PRDs, roadmap prioritization, user discovery, business metrics).
+   - RAW ANALYTICS TOOLS VS. PRODUCT ANALYTICS:
+     * Knowing SQL syntax or Power BI dashboards is a tooling skill; Product Analytics requires cohort retention analysis, funnel drop-off diagnosis, and experimentation metrics.
+   - REACT VS. REACT + TYPESCRIPT:
+     * If JD requires TypeScript with React and candidate only has JavaScript with React without TypeScript evidence -> evaluate as "partial_match" (0.6).
+   - LOGICAL OPERATORS (AND vs OR):
+     * "A OR B": Strong evidence for either A or B satisfies the requirement as "strong_match" (1.0).
+     * "A AND B": Evidence must demonstrate both capabilities. Evidence for only one satisfies as "partial_match" (0.5-0.6).
    - INCOMPATIBLE NON-EQUIVALENT TECHNOLOGIES:
      * Flutter vs. React Native: React Native is NOT Flutter. If JD asks for Flutter and candidate only has React Native, evaluate as "no_evidence" (0.0) or "weak_evidence" (0.3).
      * Supabase vs. Firebase: If JD requires Supabase and candidate only has Firebase (or vice-versa), do NOT give strong_match.
@@ -462,12 +503,12 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
       "evidence_ids": ["ev_sum_1", "ev_exp_1_header"],
       "evidence_source_type": "explicit_resume_claim",
       "status": "meets_requirement",
-      "reasoning": "Resume explicitly claims 5+ years of B2C consumer product and e-commerce experience in summary (explicit_resume_claim). Dated employment evidence verifies approximately ${chronology.productYears} years in continuous product roles (employment_date_calculation)."
+      "reasoning": "Resume explicitly claims 5+ years of B2C consumer product and e-commerce experience in summary."
     }
   ]
 }`;
 
-  const responseText = await callLLM(evaluationPrompt, 0.1);
+  const responseText = await callLLM(evaluationPrompt, 0.0);
 
   let rawEvaluations: {
     requirement_id: string;
@@ -573,7 +614,7 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
   );
   const requirementsToEvaluate = skillRequirements.length > 0 ? skillRequirements : allRequirements;
 
-  // REQUIREMENT COVERAGE AUDIT: Invariant: every single atomic requirement is evaluated
+  // REQUIREMENT COVERAGE AUDIT: Invariant: every single atomic requirement in the graph is evaluated
   const structuredResults: RequirementMatchResult[] = requirementsToEvaluate.map((req) => {
     const rawEval = evaluationsMap.get(req.id);
     let status: MatchStatus = rawEval && STATUS_SCORES[rawEval.status] !== undefined
@@ -660,6 +701,7 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     }
 
     const criticality: RequirementCriticality = req.criticality || (req.importance === "required" ? "hard" : "soft");
+    const weight = req.weight !== undefined && req.weight > 0 ? req.weight : computeRequirementWeight(req.importance, criticality);
 
     return {
       requirement_id: req.id,
@@ -668,6 +710,7 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
       requirement_type: req.requirement_type,
       importance: req.importance,
       criticality,
+      weight,
       status,
       score,
       confidence,
