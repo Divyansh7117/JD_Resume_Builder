@@ -131,9 +131,9 @@ export async function callLLM(prompt: string, temperature: number = 0.0, retries
     callTimestamps.shift();
   }
 
-  if (callTimestamps.length >= 10) {
+  if (callTimestamps.length >= 8) {
     const oldestTimestamp = callTimestamps[0];
-    const waitTime = Math.max(0, oldestTimestamp + 60000 - Date.now() + 100);
+    const waitTime = Math.max(0, oldestTimestamp + 60000 - Date.now() + 500);
     if (waitTime > 0) {
       console.log(`[RATE LIMIT] Throttling: waiting ${(waitTime / 1000).toFixed(1)}s before next call to respect RPM quota...`);
       await sleep(waitTime);

@@ -54,6 +54,7 @@ export interface ParsedExperienceConstraint {
   maxYears?: number;
   domain?: string;
   allowsInternships: boolean;
+  requiresFullTimeOnly: boolean;
   isUnspecified: boolean;
 }
 
@@ -240,8 +241,8 @@ export function calculateMonthsBetween(start: Date, end: Date): number {
   if (end < start) return 0;
   const yearsDiff = end.getFullYear() - start.getFullYear();
   const monthsDiff = end.getMonth() - start.getMonth();
-  // +1 to count both start and end calendar months inclusively
-  return Math.max(1, yearsDiff * 12 + monthsDiff + 1);
+  // Count elapsed months only; do not inflate tenure with inclusive endpoints.
+  return Math.max(0, yearsDiff * 12 + monthsDiff);
 }
 
 /**
@@ -369,42 +370,51 @@ export function calculateCandidateChronology(
 export function parseExperienceConstraint(reqText: string): ParsedExperienceConstraint {
   const text = reqText.toLowerCase();
 
+  const requiresFullTimeOnly =
+    text.includes("full-time") ||
+    text.includes("full time") ||
+    text.includes("excluding internship") ||
+    text.includes("excluding internships") ||
+    text.includes("non-internship") ||
+    text.includes("post-graduate");
+
   const allowsInternships =
-    text.includes("internship") ||
-    text.includes("intern") ||
-    text.includes("internships count") ||
-    text.includes("internships welcome");
+    !requiresFullTimeOnly &&
+    (text.includes("internship") ||
+      text.includes("intern") ||
+      text.includes("internships count") ||
+      text.includes("internships welcome"));
 
   // Pattern 1: Range "1-3 years", "1–3 yrs", "1 to 3 years", "between 1 and 3 years", "3-5 years"
   const rangeMatch = text.match(/(?:between\s+)?(\d+(?:\.\d+)?)\s*(?:–|—|-|to|and)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?)/i);
   if (rangeMatch) {
     const minYears = parseFloat(rangeMatch[1]);
     const maxYears = parseFloat(rangeMatch[2]);
-    return { minYears, maxYears, allowsInternships, isUnspecified: false };
+    return { minYears, maxYears, allowsInternships, requiresFullTimeOnly, isUnspecified: false };
   }
 
   // Pattern 2: Plus format "2+ years", "5+ yrs", "3 + years"
   const plusMatch = text.match(/(\d+(?:\.\d+)?)\s*\+\s*(?:years?|yrs?)/i);
   if (plusMatch) {
     const minYears = parseFloat(plusMatch[1]);
-    return { minYears, allowsInternships, isUnspecified: false };
+    return { minYears, allowsInternships, requiresFullTimeOnly, isUnspecified: false };
   }
 
   // Pattern 3: Minimum / At least / More than "minimum 2 years", "at least 3 yrs", "more than 4 years", "over 5 years"
   const minMatch = text.match(/(?:minimum|min|at least|more than|over|greater than)\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:years?|yrs?)/i);
   if (minMatch) {
     const minYears = parseFloat(minMatch[1]);
-    return { minYears, allowsInternships, isUnspecified: false };
+    return { minYears, allowsInternships, requiresFullTimeOnly, isUnspecified: false };
   }
 
   // Pattern 4: "X years of experience"
   const standardMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?)(?:\s+of)?(?:\s+experience)?/i);
   if (standardMatch) {
     const minYears = parseFloat(standardMatch[1]);
-    return { minYears, allowsInternships, isUnspecified: false };
+    return { minYears, allowsInternships, requiresFullTimeOnly, isUnspecified: false };
   }
 
-  return { minYears: 0, allowsInternships, isUnspecified: true };
+  return { minYears: 0, allowsInternships, requiresFullTimeOnly, isUnspecified: true };
 }
 
 /**
@@ -426,7 +436,10 @@ export function evaluateExperienceRequirement(
   const summaryConstraint = parseExperienceConstraint(resumeSummary);
   const claimedYears = summaryConstraint.isUnspecified ? undefined : summaryConstraint.minYears;
 
-  const relevantYears = constraint.allowsInternships
+  // Internships count only when the stated requirement explicitly permits them.
+  const allowsInternships = constraint.allowsInternships;
+
+  const relevantYears = allowsInternships
     ? chronology.totalCombinedYears
     : chronology.totalProfessionalYears;
 
@@ -446,9 +459,15 @@ export function evaluateExperienceRequirement(
   };
 
   if (constraint.isUnspecified) {
+    let expDesc = `${relevantYears} years of verified experience`;
+    if (chronology.totalInternshipYears > 0 && chronology.totalProfessionalYears === 0) {
+      expDesc = `${chronology.totalInternshipYears} years of verified internship experience`;
+    } else if (chronology.totalInternshipYears > 0) {
+      expDesc = `${chronology.totalProfessionalYears} years of professional and ${chronology.totalInternshipYears} years of internship experience (${chronology.totalCombinedYears} years combined)`;
+    }
     return {
       status: "meets_requirement",
-      reasoning: `Candidate has ${relevantYears} years of verified experience across ${rolesBreakdown.length} roles.`,
+      reasoning: `Candidate has ${expDesc} across ${rolesBreakdown.length} roles.`,
       verification,
     };
   }
@@ -458,9 +477,11 @@ export function evaluateExperienceRequirement(
   // Evaluation logic:
   // 1. If candidate meets or exceeds minYears (or is within acceptable range)
   if (relevantYears >= minYears) {
-    let reasoning = `Requirement met: Candidate has ${relevantYears} years of verified professional experience, satisfying the requirement (${minYears}${maxYears ? `–${maxYears}` : "+"} years).`;
-    if (constraint.allowsInternships && chronology.totalInternshipYears > 0) {
-      reasoning += ` (Includes ${chronology.totalInternshipYears} yrs internship tenure as permitted).`;
+    let reasoning = `Requirement met: Candidate has ${relevantYears} years of verified experience, satisfying the requirement (${minYears}${maxYears ? `–${maxYears}` : "+"} years).`;
+    if (chronology.totalInternshipYears > 0 && chronology.totalProfessionalYears === 0) {
+      reasoning = `Requirement met: Candidate has ${chronology.totalInternshipYears} years of verified internship experience, satisfying the junior/entry requirement (${minYears}${maxYears ? `–${maxYears}` : "+"} years).`;
+    } else if (chronology.totalInternshipYears > 0) {
+      reasoning += ` (Includes ${chronology.totalInternshipYears} yrs internship tenure).`;
     }
     return {
       status: "meets_requirement",
@@ -479,9 +500,16 @@ export function evaluateExperienceRequirement(
   }
 
   // 3. Below requirement
+  let belowReasoning = `Candidate has ${relevantYears} years of verified professional experience, which is below the stated requirement of ${minYears}${maxYears ? `–${maxYears}` : "+"} years.`;
+  if (chronology.totalInternshipYears > 0 && chronology.totalProfessionalYears === 0) {
+    belowReasoning = `Candidate has ${chronology.totalInternshipYears} years of verified internship experience (0 years non-internship full-time), which is below the stated requirement of ${minYears}${maxYears ? `–${maxYears}` : "+"} years.`;
+  } else if (chronology.totalInternshipYears > 0) {
+    belowReasoning = `Candidate has ${chronology.totalProfessionalYears} years of full-time professional experience and ${chronology.totalInternshipYears} years of internship experience (${chronology.totalCombinedYears} years combined), which is below the stated requirement of ${minYears}${maxYears ? `–${maxYears}` : "+"} years.`;
+  }
+
   return {
     status: "below_stated_requirement",
-    reasoning: `Candidate has ${relevantYears} years of verified professional experience, which is below the stated requirement of ${minYears}${maxYears ? `–${maxYears}` : "+"} years.`,
+    reasoning: belowReasoning,
     verification,
   };
 }

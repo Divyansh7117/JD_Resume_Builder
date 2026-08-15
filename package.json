@@ -13,10 +13,11 @@
     "test:provenance": "tsx scripts/test-provenance.ts",
     "test:edge-cases": "tsx scripts/test-edge-cases.ts",
     "test:pdf": "tsx scripts/test-multipage-pdf.ts",
+    "test:evidence-priority": "tsx scripts/test-evidence-priority.ts",
     "test:e2e": "tsx scripts/test-e2e-generalized.ts",
     "test:adversarial": "tsx scripts/test-adversarial-generalized.ts",
     "test:stress": "tsx scripts/test-stress-distribution.ts",
-    "test:all": "tsx scripts/test-engine-comprehensive.ts && tsx scripts/test-education-policy.ts && tsx scripts/test-provenance.ts && tsx scripts/test-role-boundaries.ts"
+    "test:all": "tsx scripts/test-engine-comprehensive.ts && tsx scripts/test-education-policy.ts && tsx scripts/test-provenance.ts && tsx scripts/test-role-boundaries.ts && tsx scripts/test-evidence-priority.ts && tsx scripts/test-edge-cases.ts && tsx scripts/test-multipage-pdf.ts && tsx scripts/test-e2e-generalized.ts && tsx scripts/test-adversarial-generalized.ts && tsx scripts/test-stress-distribution.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.7.4",

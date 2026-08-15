@@ -189,13 +189,15 @@ export function validateMatchConsistency(
 
   const evaluations = analysis.evaluations || [];
   const matched = analysis.matched_requirements || [];
+  const claimed = analysis.claimed_requirements || [];
   const partial = analysis.partial_requirements || [];
   const missing = analysis.missing_requirements || [];
 
-  // Invariant 1: Matched + Partial + Missing === Total Evaluated
-  if (matched.length + partial.length + missing.length !== evaluations.length) {
+  // Invariant 1: Matched (Direct) + Claimed + Partial + Missing === Total Evaluated
+  const totalCategorized = matched.length + claimed.length + partial.length + missing.length;
+  if (totalCategorized !== evaluations.length) {
     issues.push(
-      `Partition mismatch: Matched (${matched.length}) + Partial (${partial.length}) + Missing (${missing.length}) = ${matched.length + partial.length + missing.length}, but Total Evaluations = ${evaluations.length}`
+      `Partition mismatch: Matched (${matched.length}) + Claimed (${claimed.length}) + Partial (${partial.length}) + Missing (${missing.length}) = ${totalCategorized}, but Total Evaluations = ${evaluations.length}`
     );
   }
 
@@ -220,6 +222,26 @@ export function validateMatchConsistency(
         `Missing proof for requirement '${ev.requirement_name}': Status is '${ev.status}' but no verified evidence units are attached.`
       );
     }
+
+    if (ev.status === "no_evidence" && (ev.evidence_ids.length !== 0 || hasEvidence)) {
+      issues.push(`No-evidence requirement '${ev.requirement_name}' must not retain evidence IDs or resolved evidence.`);
+    }
+
+    const expectedScore = ev.status === "strong_match" ? 1.0
+      : ev.status === "claimed_match" ? 0.8
+      : ev.status === "partial_match" ? 0.6
+      : 0.0;
+    if (ev.score !== expectedScore) {
+      issues.push(`Score-tier mismatch for '${ev.requirement_name}'.`);
+    }
+  }
+
+  const allStrong = evaluations.length > 0 && evaluations.every((ev) => ev.status === "strong_match" && ev.score === 1.0);
+  if (allStrong && analysis.match_score !== 100) {
+    issues.push("Score invariant violated: all strong requirements must produce a 100% capability score.");
+  }
+  if (analysis.match_score < 100 && evaluations.length > 0 && evaluations.every((ev) => ev.score === 1.0)) {
+    issues.push("Score invariant violated: a sub-100 capability score requires at least one non-strong requirement.");
   }
 
   return {
@@ -227,4 +249,3 @@ export function validateMatchConsistency(
     issues,
   };
 }
-

@@ -30,9 +30,24 @@ export const STATUS_SCORES: Record<MatchStatus, number> = {
   strong_match: 1.0,
   claimed_match: 0.8,
   partial_match: 0.6,
-  weak_evidence: 0.6,
   no_evidence: 0.0,
 };
+
+function normalizeMatchStatus(value: unknown): MatchStatus {
+  return value === "strong_match" ||
+    value === "claimed_match" ||
+    value === "partial_match" ||
+    value === "no_evidence"
+    ? value
+    : "no_evidence";
+}
+
+function evidenceTier(unit: CandidateEvidenceUnit): "direct" | "claimed" | "education" | "other" {
+  if (unit.source_section === "experience" || unit.source_section === "project") return "direct";
+  if (unit.source_section === "skill" || unit.source_section === "summary" || unit.source_section === "certification") return "claimed";
+  if (unit.source_section === "education") return "education";
+  return "other";
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PURE DETERMINISTIC SCORING ENGINE
@@ -209,7 +224,7 @@ export async function retrieveTopRelevantEvidence(
   req: JDRequirement,
   evidenceUnits: CandidateEvidenceUnit[],
   evidenceEmbeddings?: number[][],
-  topK: number = 8
+  topK: number = 12
 ): Promise<CandidateEvidenceUnit[]> {
   const queryText = `${req.name}: ${req.description} ${(req.sub_requirements || []).join(" ")}`;
 
@@ -240,10 +255,24 @@ export async function retrieveTopRelevantEvidence(
       score = lexicalCosineSimilarity(queryLexical, unitLexical);
     }
 
-    // Boost exact matches in token check
+    // Source Quality & Directness Hierarchy Boost
     const exact = checkExactTechMatch(req.name, unit.text);
+    const isDemonstratedSource = unit.id.startsWith("ev_exp_") || unit.id.startsWith("ev_proj_");
+    const isClaimedSource = unit.id.startsWith("ev_skill_") || unit.id.startsWith("ev_sum_");
+
     if (exact.isMatch) {
-      score += 0.5;
+      if (isDemonstratedSource) {
+        // Highest priority: Direct demonstration in work experience or project bullet
+        score += 1.0;
+      } else if (isClaimedSource) {
+        // Secondary priority: Explicit claim in skills list or summary
+        score += 0.4;
+      } else {
+        score += 0.2;
+      }
+    } else if (isDemonstratedSource) {
+      // Small boost for concrete work/project context over standalone words
+      score += 0.05;
     }
 
     scoredUnits.push({ unit, score });
@@ -356,7 +385,7 @@ async function executeDirectEvaluation(
   // Retrieve top relevant evidence for each scorable requirement
   const requirementsWithEvidence = await Promise.all(
     scorableRequirements.map(async (req) => {
-      const topEvidence = await retrieveTopRelevantEvidence(req, evidenceUnits, evidenceEmbeddings, 8);
+      const topEvidence = await retrieveTopRelevantEvidence(req, evidenceUnits, evidenceEmbeddings, 12);
       return {
         requirement_id: req.id,
         requirement_name: req.name,
@@ -394,6 +423,15 @@ GENERAL CAPABILITY & EVIDENCE RULES:
      * The candidate demonstrates a related, adjacent, or foundational capability (e.g. relational DB background for general SQL, closely related library, or 1 of 2 technologies in an AND requirement).
    - "none" ("no_evidence", score 0.0):
      * Zero supporting evidence found anywhere in the candidate's resume.
+
+1.1 EVIDENCE HIERARCHY & CITATION CONTRACT:
+   - If ANY candidate evidence unit from Work Experience (ev_exp_*) or Projects (ev_proj_*) demonstrates using, building, optimizing, or delivering with the requirement:
+     * You MUST assign status: "strong_match" and evidence_level: "demonstrated" (score 1.0).
+     * You MUST cite the supporting "ev_exp_*" and/or "ev_proj_*" evidence IDs in "evidence_ids".
+     * You must NOT cite solely an "ev_skill_*" ID when concrete project or work evidence is present.
+   - If the requirement ONLY appears in the Skills section (ev_skill_*) or summary claim (ev_sum_*) without work/project demonstration:
+     * Assign status: "claimed_match" and evidence_level: "claimed" (score 0.8).
+     * Cite the "ev_skill_*" or "ev_sum_*" ID.
 
 2. GENERAL CAPABILITY NORMALIZATION:
    - Technology -> Broader Capability:
@@ -523,14 +561,45 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     } else if (isLocation) {
       const statedLoc = req.description || req.name;
       let status: EligibilityStatus = "meets_requirement";
-      let reasoning = `Candidate location (${candidateLocation}) evaluated.`;
+      let reasoning = `Candidate location (${candidateLocation}) evaluated for ${statedLoc}.`;
 
-      if (candidateLocation !== "Not specified" && statedLoc.toLowerCase().includes("office")) {
+      if (
+        candidateLocation !== "Not specified" &&
+        (statedLoc.toLowerCase().includes("office") ||
+          statedLoc.toLowerCase().includes("hybrid") ||
+          statedLoc.toLowerCase().includes("on-site") ||
+          statedLoc.toLowerCase().includes("onsite"))
+      ) {
         const reqCity = statedLoc.toLowerCase();
         const candCity = candidateLocation.toLowerCase();
-        if (!reqCity.includes(candCity) && !candCity.includes(reqCity) && !statedLoc.toLowerCase().includes("remote")) {
+        const isExactCityMatch =
+          reqCity.includes(candCity) ||
+          candCity.includes(reqCity) ||
+          statedLoc.toLowerCase().includes("remote");
+
+        const resumeSummary = (resume.summary || "").toLowerCase();
+        const hasUnwillingStatement =
+          resumeSummary.includes("not willing to relocate") ||
+          resumeSummary.includes("unwilling to relocate") ||
+          resumeSummary.includes("cannot relocate");
+        const hasWillingStatement =
+          resumeSummary.includes("willing to relocate") ||
+          resumeSummary.includes("open to relocation") ||
+          resumeSummary.includes("open to relocate") ||
+          resumeSummary.includes("available to work");
+
+        if (hasUnwillingStatement) {
           status = "location_mismatch";
-          reasoning = `Candidate is located in ${candidateLocation}, whereas role specifies ${statedLoc}.`;
+          reasoning = `Candidate is located in ${candidateLocation} and explicitly states unwilling to relocate for role specifying ${statedLoc}.`;
+        } else if (isExactCityMatch || hasWillingStatement) {
+          status = "meets_requirement";
+          reasoning = hasWillingStatement
+            ? `Candidate is located in ${candidateLocation} and open to relocation for ${statedLoc}.`
+            : `Candidate location (${candidateLocation}) satisfies role location (${statedLoc}).`;
+        } else {
+          // Geographic difference without explicit refusal -> review needed / unverified, not a hard mismatch
+          status = "partially_verified";
+          reasoning = `Candidate is based in ${candidateLocation}; role specifies ${statedLoc}. Relocation/hybrid availability to be confirmed during interview.`;
         }
       }
 
@@ -581,88 +650,93 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
   // 2. Process Capability Results Deterministically
   const structuredResults: RequirementMatchResult[] = scorableRequirements.map((req) => {
     const rawEval = evaluationsMap.get(req.id);
-    let status: MatchStatus = rawEval?.status || "no_evidence";
-    let evidenceLevel: EvidenceLevel = rawEval?.evidence_level || "none";
+    const llmStatus = normalizeMatchStatus(rawEval?.status);
+    let status: MatchStatus = llmStatus;
+    let evidenceLevel: EvidenceLevel = "none";
 
     // Strictly resolve evidence_ids against immutable CandidateEvidenceUnits
     const resolvedEvidence: { text: string; source: string; evidence_id: string }[] = [];
     const verifiedIds: string[] = [];
 
+    const addVerifiedUnit = (unit: CandidateEvidenceUnit) => {
+      if (verifiedIds.includes(unit.id)) return;
+      verifiedIds.push(unit.id);
+      resolvedEvidence.push({
+        text: unit.text,
+        source: unit.source_title || unit.source_section,
+        evidence_id: unit.id,
+      });
+    };
+
     for (const evId of rawEval?.evidence_ids || []) {
       const unit = evidenceMap.get(evId);
-      if (unit) {
-        verifiedIds.push(unit.id);
-        resolvedEvidence.push({
-          text: unit.text, // 100% exact substring from original source resume
-          source: unit.source_title || unit.source_section,
-          evidence_id: unit.id,
-        });
-      }
+      if (unit) addVerifiedUnit(unit);
     }
 
-    // Direct Exact Tech Match Check on Candidate Evidence
+    // Direct Exact Tech Match Check on Work Experience & Projects
+    // If the candidate's resume contains work or project bullets explicitly demonstrating req.name,
+    // ensure those demonstrated units are attached so that stronger project/work evidence is never omitted.
+    const exactWorkUnits = evidenceUnits.filter(
+      (u) => evidenceTier(u) === "direct" && checkExactTechMatch(req.name, u.text).isMatch
+    );
+
+    for (const workUnit of exactWorkUnits) {
+      addVerifiedUnit(workUnit);
+    }
+
+    // An exact parser-owned claim is valid claimed evidence even if the LLM
+    // omitted it. It remains below a demonstrated work/project match.
+    const exactClaimUnits = evidenceUnits.filter(
+      (unit) => evidenceTier(unit) === "claimed" && checkExactTechMatch(req.name, unit.text).isMatch
+    );
+    if (exactWorkUnits.length === 0) {
+      for (const unit of exactClaimUnits) addVerifiedUnit(unit);
+    }
+
+    const resolvedUnits = verifiedIds
+      .map((id) => evidenceMap.get(id))
+      .filter((unit): unit is CandidateEvidenceUnit => Boolean(unit));
+    const hasDirectEvidence = resolvedUnits.some((unit) => evidenceTier(unit) === "direct");
+    const hasClaimEvidence = resolvedUnits.some((unit) => evidenceTier(unit) === "claimed");
+    const hasEducationOnlyEvidence = resolvedUnits.length > 0 && resolvedUnits.every((unit) => evidenceTier(unit) === "education");
+
     const combinedEvidenceText = resolvedEvidence.map((e) => e.text).join(" ");
     const exactCheck = checkExactTechMatch(req.name, combinedEvidenceText);
 
-    // Also check if any evidence unit contains an exact token match
-    if (!exactCheck.isMatch && resolvedEvidence.length === 0) {
-      for (const unit of evidenceUnits) {
-        if (checkExactTechMatch(req.name, unit.text).isMatch) {
-          verifiedIds.push(unit.id);
-          resolvedEvidence.push({
-            text: unit.text,
-            source: unit.source_title || unit.source_section,
-            evidence_id: unit.id,
-          });
-        }
-      }
-    }
-
-    const hasExperienceEvidence = resolvedEvidence.some(
-      (e) => e.evidence_id.startsWith("ev_exp_") || e.evidence_id.startsWith("ev_proj_")
-    );
-    const hasSkillsOnlyEvidence =
-      resolvedEvidence.length > 0 &&
-      resolvedEvidence.every((e) => e.evidence_id.startsWith("ev_skill_") || e.evidence_id.startsWith("ev_sum_"));
-    const hasEducationOnlyEvidence =
-      resolvedEvidence.length > 0 &&
-      resolvedEvidence.every((e) => e.evidence_id.startsWith("ev_edu_"));
-
     // ── EVIDENCE MODEL INTEGRATION ──
-    if (
-      status === "no_evidence" ||
-      rawEval?.evidence_level === "none" ||
-      resolvedEvidence.length === 0 ||
-      (hasEducationOnlyEvidence && !exactCheck.isMatch)
-    ) {
+    if (exactWorkUnits.length > 0) {
+      // Parser-owned direct evidence is authoritative and cannot be hidden by
+      // an incomplete retrieval result or an LLM omission.
+      status = "strong_match";
+      evidenceLevel = "demonstrated";
+    } else if (llmStatus === "strong_match" && hasDirectEvidence) {
+      status = "strong_match";
+      evidenceLevel = "demonstrated";
+    } else if (exactClaimUnits.length > 0) {
+      status = "claimed_match";
+      evidenceLevel = "claimed";
+    } else if (llmStatus === "no_evidence" || resolvedEvidence.length === 0 || hasEducationOnlyEvidence) {
       status = "no_evidence";
       evidenceLevel = "none";
       resolvedEvidence.length = 0;
       verifiedIds.length = 0;
-    } else if (status === "strong_match" || rawEval?.evidence_level === "demonstrated") {
-      if (hasExperienceEvidence) {
-        status = "strong_match";
-        evidenceLevel = "demonstrated";
-      } else {
-        // Listed in Skills or Summary only
-        status = "claimed_match";
-        evidenceLevel = "claimed";
-      }
-    } else if (status === "claimed_match" || rawEval?.evidence_level === "claimed" || hasSkillsOnlyEvidence) {
+    } else if (llmStatus === "strong_match" || llmStatus === "claimed_match") {
+      // A skills/summary/certification claim never becomes demonstrated merely
+      // because it was accepted by semantic classification.
       status = "claimed_match";
       evidenceLevel = "claimed";
-    } else if (status === "partial_match" || status === "weak_evidence" || rawEval?.evidence_level === "partial") {
+    } else if (llmStatus === "partial_match" && (hasDirectEvidence || hasClaimEvidence)) {
       status = "partial_match";
       evidenceLevel = "partial";
+    } else {
+      status = "no_evidence";
+      evidenceLevel = "none";
+      resolvedEvidence.length = 0;
+      verifiedIds.length = 0;
     }
 
     // Compute deterministic score for status
-    let score = STATUS_SCORES[status] ?? 0.0;
-
-    // Handle dynamic AND operator partial score adjustment
-    if (req.logical_operator === "AND" && status === "partial_match") {
-      score = 0.5;
-    }
+    const score = STATUS_SCORES[status] ?? 0.0;
 
     // Evidence-based confidence calculation per requirement
     let confidence = 0.9;
@@ -752,10 +826,17 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
   // ══════════════════════════════════════════════════════════════════════════════
 
   const matched_requirements = structuredResults.filter(
-    (r) => r.status === "strong_match" || r.status === "claimed_match"
+    (r) => r.status === "strong_match"
   );
-  const partial_requirements = structuredResults.filter((r) => r.status === "partial_match" || r.status === "weak_evidence");
-  const missing_requirements = structuredResults.filter((r) => r.status === "no_evidence" || r.score === 0.0);
+  const claimed_requirements = structuredResults.filter(
+    (r) => r.status === "claimed_match"
+  );
+  const partial_requirements = structuredResults.filter(
+    (r) => r.status === "partial_match"
+  );
+  const missing_requirements = structuredResults.filter(
+    (r) => r.status === "no_evidence" || r.score === 0.0
+  );
 
   const gaps: GapItem[] = [...partial_requirements, ...missing_requirements].map((r) => {
     let severity: GapItem["severity"] = "minor";
@@ -792,7 +873,12 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     }
   }
 
-  for (const elig of eligibilityResults) {
+  for (const claimed of claimed_requirements) {
+    why_not_100.push(`${claimed.requirement_name}: explicitly claimed, but not demonstrated in work or project evidence.`);
+  }
+
+  // Eligibility is rendered independently and never changes capability diagnostics.
+  for (const elig of [] as typeof eligibilityResults) {
     if (elig.status === "location_mismatch") {
       why_not_100.push(`Location mismatch — Candidate is located in ${candidateLocation}, whereas JD specifies ${elig.stated_requirement}.`);
     } else if (elig.status === "below_stated_requirement" || elig.status === "requirement_not_met") {
@@ -800,10 +886,17 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     }
   }
 
+  const allStrong = structuredResults.length > 0 && structuredResults.every((result) => result.status === "strong_match" && result.score === 1.0);
+  if (allStrong && match_score !== 100) {
+    throw new Error("Score invariant violated: all scorable requirements are strong_match but score is not 100.");
+  }
+  if (match_score < 100 && structuredResults.length > 0 && structuredResults.every((result) => result.score === 1.0)) {
+    throw new Error("Score invariant violated: a sub-100 score has no non-strong scorable requirement.");
+  }
+
   const matched_skills = Array.from(
     new Set([
       ...matched_requirements.map((r) => r.requirement_name),
-      ...partial_requirements.map((r) => r.requirement_name),
     ])
   );
   const missing_skills = Array.from(
@@ -826,6 +919,7 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     dimensions,
     evaluations: structuredResults,
     matched_requirements,
+    claimed_requirements,
     partial_requirements,
     missing_requirements,
     gaps,

@@ -466,16 +466,16 @@ export default function AppPage() {
   }
 
   function getMatchRating(score: number): { label: string; color: string; bg: string; border: string; glow: string } {
-    if (score >= 85) {
+    if (score >= 90) {
       return { label: "EXCEPTIONAL FIT", color: "#10B981", bg: "rgba(16,185,129,0.15)", border: "rgba(16,185,129,0.5)", glow: "rgba(16,185,129,0.3)" };
     }
-    if (score >= 70) {
+    if (score >= 75) {
       return { label: "STRONG ALIGNMENT", color: "#3654FF", bg: "rgba(54,84,255,0.15)", border: "rgba(54,84,255,0.5)", glow: "rgba(54,84,255,0.3)" };
     }
-    if (score >= 45) {
+    if (score >= 50) {
       return { label: "MODERATE FIT", color: "#38BDF8", bg: "rgba(56,189,248,0.15)", border: "rgba(56,189,248,0.5)", glow: "rgba(56,189,248,0.3)" };
     }
-    if (score >= 25) {
+    if (score >= 30) {
       return { label: "PARTIAL COVERAGE", color: "#F59E0B", bg: "rgba(245,158,11,0.15)", border: "rgba(245,158,11,0.5)", glow: "rgba(245,158,11,0.3)" };
     }
     return { label: "LOW FIT / GAPS", color: "#EF4444", bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.5)", glow: "rgba(239,68,68,0.3)" };
@@ -1045,9 +1045,11 @@ export default function AppPage() {
                         )}
                       </div>
                       <h3 className="font-heading text-xl sm:text-2xl font-bold text-white">
-                        {result.tailored.match_score >= 80
+                        {result.tailored.match_score >= 90
                           ? "Exceptional Technical & Domain Alignment"
-                          : result.tailored.match_score >= 40
+                          : result.tailored.match_score >= 75
+                          ? "Strong Technical & Requirement Alignment"
+                          : result.tailored.match_score >= 50
                           ? "Moderate Requirement Alignment"
                           : "Low Fit / Critical Technical Gaps"}
                       </h3>
@@ -1058,23 +1060,29 @@ export default function AppPage() {
                   </div>
 
                   {/* Right: Quick Stat Telemetry Tiles */}
-                  <div className="grid grid-cols-3 lg:flex lg:flex-col gap-2 shrink-0 w-full lg:w-44">
-                    <div className="px-3.5 py-2.5 rounded-xl bg-[#0C1018] border border-[#10B981]/30 flex items-center justify-between gap-2 shadow-sm">
-                      <span className="font-label text-xs text-[#94A3B8]">Matched</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:flex lg:flex-col gap-2 shrink-0 w-full lg:w-44">
+                    <div className="px-3 py-2 rounded-xl bg-[#0C1018] border border-[#10B981]/30 flex items-center justify-between gap-2 shadow-sm">
+                      <span className="font-label text-[11px] text-[#94A3B8]">Direct</span>
                       <span className="font-heading font-extrabold text-sm text-[#10B981]">
-                        + {result.tailored.match_analysis?.matched_requirements?.length ?? result.tailored.matched_skills.length}
+                        + {result.tailored.match_analysis?.matched_requirements?.length ?? 0}
                       </span>
                     </div>
-                    <div className="px-3.5 py-2.5 rounded-xl bg-[#0C1018] border border-[#00F0FF]/30 flex items-center justify-between gap-2 shadow-sm">
-                      <span className="font-label text-xs text-[#94A3B8]">Partial</span>
+                    <div className="px-3 py-2 rounded-xl bg-[#0C1018] border border-[#6366F1]/30 flex items-center justify-between gap-2 shadow-sm">
+                      <span className="font-label text-[11px] text-[#94A3B8]">Claimed</span>
+                      <span className="font-heading font-extrabold text-sm text-[#818CF8]">
+                        * {result.tailored.match_analysis?.claimed_requirements?.length ?? 0}
+                      </span>
+                    </div>
+                    <div className="px-3 py-2 rounded-xl bg-[#0C1018] border border-[#00F0FF]/30 flex items-center justify-between gap-2 shadow-sm">
+                      <span className="font-label text-[11px] text-[#94A3B8]">Partial</span>
                       <span className="font-heading font-extrabold text-sm text-[#00F0FF]">
                         ~ {result.tailored.match_analysis?.partial_requirements?.length ?? 0}
                       </span>
                     </div>
-                    <div className="px-3.5 py-2.5 rounded-xl bg-[#0C1018] border border-[#EF4444]/30 flex items-center justify-between gap-2 shadow-sm">
-                      <span className="font-label text-xs text-[#94A3B8]">Gaps</span>
+                    <div className="px-3 py-2 rounded-xl bg-[#0C1018] border border-[#EF4444]/30 flex items-center justify-between gap-2 shadow-sm">
+                      <span className="font-label text-[11px] text-[#94A3B8]">Gaps</span>
                       <span className="font-heading font-extrabold text-sm text-[#EF4444]">
-                        - {result.tailored.match_analysis?.missing_requirements?.length ?? result.tailored.missing_skills.length}
+                        - {result.tailored.match_analysis?.missing_requirements?.length ?? 0}
                       </span>
                     </div>
                   </div>
@@ -1092,7 +1100,7 @@ export default function AppPage() {
                           </h4>
                         </div>
                         <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                          Visual ratio of verified direct matches vs partial fits and missing skills
+                          Visual ratio of demonstrated direct matches, claimed skills, partial fits, and missing gaps
                         </p>
                       </div>
                       <span className="text-xs font-label text-[#38BDF8] font-bold px-2.5 py-1 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/30">
@@ -1103,23 +1111,32 @@ export default function AppPage() {
                     {/* Segmented Multi-Color Progress Bar */}
                     {(() => {
                       const total = result.tailored.match_analysis.evaluations.length || 1;
-                      const matchedCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "strong_match" || e.status === "claimed_match").length;
-                      const partialCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "partial_match" || e.status === "weak_evidence").length;
-                      const missingCount = Math.max(0, total - matchedCount - partialCount);
+                      const directCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "strong_match").length;
+                      const claimedCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "claimed_match").length;
+                      const partialCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "partial_match").length;
+                      const missingCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "no_evidence" || e.score === 0).length;
 
-                      const matchedPct = Math.round((matchedCount / total) * 100);
+                      const directPct = Math.round((directCount / total) * 100);
+                      const claimedPct = Math.round((claimedCount / total) * 100);
                       const partialPct = Math.round((partialCount / total) * 100);
-                      const missingPct = Math.max(0, 100 - matchedPct - partialPct);
+                      const missingPct = Math.max(0, 100 - directPct - claimedPct - partialPct);
 
                       return (
                         <div className="space-y-3">
                           {/* Bar */}
                           <div className="w-full h-3.5 bg-[#0C1018] rounded-full overflow-hidden flex border border-[#232D3F] p-0.5 shadow-inner">
-                            {matchedPct > 0 && (
+                            {directPct > 0 && (
                               <div
-                                style={{ width: `${matchedPct}%` }}
+                                style={{ width: `${directPct}%` }}
                                 className="h-full bg-gradient-to-r from-[#10B981] to-[#34D399] rounded-l-full transition-all duration-700 shadow-sm shadow-emerald-500/50"
-                                title={`Full Matches: ${matchedCount} (${matchedPct}%)`}
+                                title={`Direct Demonstrated: ${directCount} (${directPct}%)`}
+                              />
+                            )}
+                            {claimedPct > 0 && (
+                              <div
+                                style={{ width: `${claimedPct}%` }}
+                                className="h-full bg-gradient-to-r from-[#6366F1] to-[#818CF8] transition-all duration-700 shadow-sm shadow-indigo-500/50"
+                                title={`Claimed Skills: ${claimedCount} (${claimedPct}%)`}
                               />
                             )}
                             {partialPct > 0 && (
@@ -1139,29 +1156,37 @@ export default function AppPage() {
                           </div>
 
                           {/* Legend Counters */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
                             <div className="p-2.5 rounded-xl bg-[#10B981]/10 border border-[#10B981]/30 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] inline-block shadow-sm shadow-emerald-400" />
-                                <span className="text-white font-medium">Direct Matches</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-[#10B981] inline-block shadow-sm shadow-emerald-400" />
+                                <span className="text-white font-medium text-[11px]">Direct Matches</span>
                               </div>
-                              <span className="font-bold font-mono text-[#10B981]">{matchedCount} ({matchedPct}%)</span>
+                              <span className="font-bold font-mono text-[#10B981] text-xs">{directCount}</span>
+                            </div>
+
+                            <div className="p-2.5 rounded-xl bg-[#6366F1]/10 border border-[#6366F1]/30 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-[#818CF8] inline-block shadow-sm shadow-indigo-400" />
+                                <span className="text-white font-medium text-[11px]">Claimed Skills</span>
+                              </div>
+                              <span className="font-bold font-mono text-[#818CF8] text-xs">{claimedCount}</span>
                             </div>
 
                             <div className="p-2.5 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-[#00F0FF] inline-block shadow-sm shadow-cyan-400" />
-                                <span className="text-white font-medium">Partial / Related</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-[#00F0FF] inline-block shadow-sm shadow-cyan-400" />
+                                <span className="text-white font-medium text-[11px]">Partial / Related</span>
                               </div>
-                              <span className="font-bold font-mono text-[#00F0FF]">{partialCount} ({partialPct}%)</span>
+                              <span className="font-bold font-mono text-[#00F0FF] text-xs">{partialCount}</span>
                             </div>
 
                             <div className="p-2.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] inline-block shadow-sm shadow-red-400" />
-                                <span className="text-white font-medium">Missing Gaps</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-[#EF4444] inline-block shadow-sm shadow-red-400" />
+                                <span className="text-white font-medium text-[11px]">Missing Gaps</span>
                               </div>
-                              <span className="font-bold font-mono text-[#EF4444]">{missingCount} ({missingPct}%)</span>
+                              <span className="font-bold font-mono text-[#EF4444] text-xs">{missingCount}</span>
                             </div>
                           </div>
                         </div>
@@ -1352,7 +1377,7 @@ export default function AppPage() {
                             diffFilter === "matched" ? "bg-[#10B981] text-white shadow-sm" : "text-[#64748B] hover:text-[#10B981]"
                           }`}
                         >
-                          + Matched
+                          + Direct
                         </button>
                         <button
                           onClick={() => setDiffFilter("partial")}
@@ -1380,15 +1405,15 @@ export default function AppPage() {
                       {result.tailored.match_analysis?.evaluations
                         ?.filter((item) => {
                           if (searchQuery && !item.requirement_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-                          if (diffFilter === "matched") return item.status === "strong_match" || item.status === "claimed_match";
-                          if (diffFilter === "partial") return item.status === "partial_match" || item.status === "weak_evidence";
+                          if (diffFilter === "matched") return item.status === "strong_match";
+                          if (diffFilter === "partial") return item.status === "partial_match";
                           if (diffFilter === "missing") return item.status === "no_evidence" || item.score === 0.0;
                           return true;
                         })
                         .map((req, i) => {
                           const isDemonstrated = req.status === "strong_match";
                           const isClaimed = req.status === "claimed_match";
-                          const isPartial = req.status === "partial_match" || req.status === "weak_evidence";
+                          const isPartial = req.status === "partial_match";
 
                           return (
                             <div

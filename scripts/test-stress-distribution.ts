@@ -341,7 +341,7 @@ SUMMARY
 Senior Full Stack Developer with 4 years building web apps with React, TypeScript, and Node.js.
 
 EXPERIENCE
-Full Stack Engineer — WebScale (2022 - Present)
+Full Stack Engineer — CloudTech Systems (2022 - Present)
 • Architected complex client applications using React and TypeScript.
 • Built RESTful backend microservices in Node.js with Express.
 • Designed relational database schemas in PostgreSQL.

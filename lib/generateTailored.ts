@@ -137,6 +137,7 @@ TAILORING & PROVENANCE RULES:
      d. PRESERVE ALL ORIGINAL METRICS & QUALITATIVE CLAIMS: Every number, metric, percentage, company name, title, and date range from the original bullet MUST be preserved faithfully and accurately. Do NOT invent fake numbers, fictional team sizes, or unverified geographic/platform scope.
      e. EXACT BULLET COUNT: Return the EXACT same number of bullets for each company entry as was provided in the input.
      f. BULLET PROVENANCE: For every rewritten bullet, include "source_evidence_ids" referencing the candidate's original evidence units supporting the bullet.
+     g. CONCISE SHORT BULLETS: For very short original bullets (e.g. fewer than 5 words such as "Maintained Node.js services."), keep the rewritten bullet concise (under 80 characters) and strictly grounded without adding speculative features or unverified architecture.
 
 3. REORDERED SKILLS LIST ("rewritten_skills"):
    - Reorder the candidate's EXACT original skills array (${JSON.stringify(resume.sections?.skills || [])}).

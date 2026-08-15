@@ -1,6 +1,7 @@
 export type RequirementImportance = "required" | "high" | "medium" | "low" | "preferred";
 export type RequirementCriticality = "hard" | "soft" | "preferred";
-export type MatchStatus = "strong_match" | "claimed_match" | "partial_match" | "weak_evidence" | "no_evidence";
+/** The four mutually-exclusive capability evidence tiers. */
+export type MatchStatus = "strong_match" | "claimed_match" | "partial_match" | "no_evidence";
 export type EvidenceLevel = "demonstrated" | "claimed" | "partial" | "none";
 export type GapSeverity = "critical" | "moderate" | "minor";
 export type RequirementType = "skill_capability" | "eligibility_constraint";
@@ -175,9 +176,10 @@ export interface MatchAnalysis {
   eligibility_results?: EligibilityResult[];
   dimensions?: CapabilityDimension[];
   evaluations: RequirementMatchResult[];
-  matched_requirements: RequirementMatchResult[];
-  partial_requirements: RequirementMatchResult[];
-  missing_requirements: RequirementMatchResult[];
+  matched_requirements: RequirementMatchResult[]; // Only strong_match (1.0) — Direct Demonstrated Matches
+  claimed_requirements: RequirementMatchResult[]; // Only claimed_match (0.8) — Claimed / Skills Evidence
+  partial_requirements: RequirementMatchResult[]; // Only partial_match / weak_evidence (0.6) — Partial / Related
+  missing_requirements: RequirementMatchResult[]; // Only no_evidence (0.0) — Missing Gaps
   gaps: GapItem[];
   audit_trail?: AuditTrailEntry[];
   matched_skills: string[];

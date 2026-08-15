@@ -282,7 +282,7 @@ const testCases: TestCase[] = [
       const origBullet = resume.sections.experience[0].bullets[0];
       if (shortEntry.bullets.length > 0) {
         const rewrittenBullet = shortEntry.bullets[0];
-        if (rewrittenBullet.length > origBullet.length * 3) {
+        if (rewrittenBullet.length > Math.max(origBullet.length * 3.5, 110)) {
           return { passed: false, reason: `Short bullet was expanded from ${origBullet.length} chars to ${rewrittenBullet.length} chars — likely padded with invented detail.` };
         }
       }

@@ -105,7 +105,7 @@ export default function Footer() {
             </h4>
             <div className="space-y-3 text-xs">
               <a
-                href="https://github.com/Divyansh7117/JD_Resume_Builder"
+                href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group inline-flex items-center gap-2.5 px-3.5 py-2 rounded-lg bg-[#0F141E] hover:bg-[#161F2E] border border-[#232D3F] hover:border-[#3654FF] text-[#E2E8F0] hover:text-white transition-all shadow-md active:scale-95"
