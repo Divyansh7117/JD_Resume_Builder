@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { JDRequirements, MatchAnalysis, TailoredOutput, ResumeData } from "../types";
 
-export const PIPELINE_VERSION = "v3.1-general-engine";
+export const PIPELINE_VERSION = "v3.5-general-engine";
 
 /**
  * Canonical text normalizer: strips carriage returns, collapses multiple spaces/tabs,

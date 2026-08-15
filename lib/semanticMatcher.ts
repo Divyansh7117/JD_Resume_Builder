@@ -407,12 +407,35 @@ GENERAL CAPABILITY & EVIDENCE RULES:
      * Relational vs Document DB (e.g., MongoDB only for PostgreSQL requirement) is PARTIAL/RELATED (0.6), NOT strong match.
      * Distinct mobile frameworks (e.g., React Native only for Flutter requirement) is PARTIAL (0.6) or NONE (0.0), NOT strong match.
 
-3. EDUCATION & DEGREE POLICY:
+3. FUNCTIONAL ROLE DISCIPLINE & RESPONSIBILITY BOUNDARIES:
+   - Implementation Evidence vs Functional Ownership Evidence:
+     * Writing software/code, developing application features, building UI components, or implementing databases/APIs does NOT automatically demonstrate Functional Ownership or Strategy (e.g. Product Management, Roadmap Ownership, Product Strategy, PRD Writing, Business/Growth Strategy, User Research, Clinical Decision-Making, Legal Compliance).
+     * Functional Ownership evidence requires explicit discipline responsibilities (e.g., product roadmaps, PRDs, customer discovery, feature prioritization, conversion/funnel optimization, growth experiments, user interviews, business KPI ownership).
+   - Domain Separation Principles across All Disciplines:
+     * Software Engineering (e.g. "built a web app", "full-stack developer", "sole developer", "shipped project with 500 users", "wrote backend/frontend code") demonstrates Technical Implementation, NOT Product Management or Product Strategy.
+     * Implementing UI Dashboards or KPI cards demonstrates Frontend/UI Engineering, NOT Growth Funnel Management, Growth Strategy, or Conversion Optimization.
+     * Writing general database queries (e.g. SQL, Postgres, MongoDB) demonstrates Database Querying, NOT Product Analytics (e.g. Mixpanel, Amplitude, GA4, user cohort retention, funnel drop-off analysis).
+     * Building ML/NLP models demonstrates Machine Learning / Engineering, NOT AI-Powered Product Design or Consumer UX Strategy unless explicit product/design application is demonstrated.
+     * UI Implementation demonstrates Frontend/Design Coding, NOT UX Research methodology (user interviews, usability studies, user personas, interaction flows).
+     * Data Engineering (ETL, pipelines, Spark, Airflow) demonstrates Infrastructure/Pipeline Development, NOT Data Science / Predictive Modeling / Statistical Inference.
+     * Technical DevOps/Infrastructure (Docker, Kubernetes, CI/CD) demonstrates DevOps Implementation, NOT DevOps Management / Engineering Leadership unless explicit team/strategy leadership is demonstrated.
+     * Basic Financial Reporting (spreadsheets, basic Excel bookkeeping) demonstrates Accounting/Financial Analysis, NOT Investment Banking / M&A Deal Execution (DCF valuation, M&A due diligence).
+   - Discipline-Mismatch & Adjacent Activity Rule:
+     * When a requirement evaluates a Functional Discipline, Strategic Leadership, or Domain Ownership capability, technical implementation evidence from an adjacent discipline is an adjacent activity that does NOT prove the functional capability. In such cases, assign "no_evidence" (0.0). Do NOT assign "strong_match" (1.0) or "claimed_match" (0.8).
+   - Legitimate Demonstrations (Do NOT Over-Reject):
+     * When the candidate explicitly demonstrates the functional discipline (e.g. "owned product roadmap and wrote PRDs", "ran A/B experiments and improved conversion by 18%", "used Mixpanel to analyze retention cohorts", "conducted usability interviews and designed interaction flows", "designed AI recommendation feature requirements for a consumer product", "built predictive statistical churn models", "managed 12 DevOps engineers and defined cloud architecture strategy", "advised on $500M M&A transactions"), assign "strong_match" (1.0) / "demonstrated".
+   - Genuine Transferability vs Adjacent Activity:
+     * Only assign "partial_match" (0.6) if the candidate's evidence establishes a genuine transferable capability in the required discipline.
+     * If the evidence is merely an adjacent technical or implementation activity without actual capability proof of the evaluated functional discipline, assign "no_evidence" (0.0).
+
+4. EDUCATION & DEGREE POLICY:
    - Educational degree titles or majors (e.g., "MBA — Business Analytics", "B.S. in Computer Science", "B.E. in Electrical Engineering", "B.A. in Economics") satisfy Education ELIGIBILITY requirements, but DO NOT automatically prove specific technical or functional capabilities (such as Statistics, Python, SQL, React, Docker, Financial Modeling).
    - Only assign a positive capability verdict if the candidate's resume provides explicit coursework, skills list, project bullets, or employment accomplishments demonstrating that specific capability.
 
-4. IMMUTABLE EVIDENCE PROVENANCE:
+5. IMMUTABLE EVIDENCE PROVENANCE:
    - Reference supporting evidence SOLELY by their exact "evidence_id" (e.g. "ev_exp_1_1", "ev_skill_1").
+   - If status is "no_evidence" ("none"), "evidence_ids" MUST be an empty array [].
+   - Only attach evidence_ids if they genuinely provide demonstrated, claimed, or partial support for the requirement.
    - Never invent non-existent evidence_ids.
 
 REQUIREMENTS & CANDIDATE EVIDENCE UNITS:
@@ -606,24 +629,31 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
       resolvedEvidence.every((e) => e.evidence_id.startsWith("ev_edu_"));
 
     // ── EVIDENCE MODEL INTEGRATION ──
-    if (resolvedEvidence.length === 0 || (hasEducationOnlyEvidence && !exactCheck.isMatch)) {
+    if (
+      status === "no_evidence" ||
+      rawEval?.evidence_level === "none" ||
+      resolvedEvidence.length === 0 ||
+      (hasEducationOnlyEvidence && !exactCheck.isMatch)
+    ) {
       status = "no_evidence";
       evidenceLevel = "none";
       resolvedEvidence.length = 0;
-    } else if (hasExperienceEvidence && (status === "strong_match" || rawEval?.evidence_level === "demonstrated")) {
-      status = "strong_match";
-      evidenceLevel = "demonstrated";
-    } else if (hasSkillsOnlyEvidence || status === "claimed_match" || rawEval?.evidence_level === "claimed") {
-      // Listed in Skills or Summary
+      verifiedIds.length = 0;
+    } else if (status === "strong_match" || rawEval?.evidence_level === "demonstrated") {
+      if (hasExperienceEvidence) {
+        status = "strong_match";
+        evidenceLevel = "demonstrated";
+      } else {
+        // Listed in Skills or Summary only
+        status = "claimed_match";
+        evidenceLevel = "claimed";
+      }
+    } else if (status === "claimed_match" || rawEval?.evidence_level === "claimed" || hasSkillsOnlyEvidence) {
       status = "claimed_match";
       evidenceLevel = "claimed";
-    } else if (status === "partial_match" || status === "weak_evidence") {
+    } else if (status === "partial_match" || status === "weak_evidence" || rawEval?.evidence_level === "partial") {
       status = "partial_match";
       evidenceLevel = "partial";
-    } else if (resolvedEvidence.length > 0 && status === "no_evidence") {
-      // INVARIANT FIX: If evidence exists, CANNOT be no_evidence!
-      status = hasExperienceEvidence ? "strong_match" : "claimed_match";
-      evidenceLevel = hasExperienceEvidence ? "demonstrated" : "claimed";
     }
 
     // Compute deterministic score for status
