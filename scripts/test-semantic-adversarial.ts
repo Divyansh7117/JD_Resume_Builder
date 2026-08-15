@@ -3,10 +3,9 @@ dotenv.config({ path: ".env.local" });
 
 import {
   calculatePureDeterministicScores,
-  evaluateRequirementsAgainstEvidence,
   STATUS_SCORES,
 } from "../lib/semanticMatcher";
-import { extractJDRequirements, computeRequirementWeight } from "../lib/extractJD";
+import { computeRequirementWeight } from "../lib/extractJD";
 import { RequirementMatchResult, RequirementImportance, RequirementCriticality, MatchStatus } from "../types";
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -60,16 +59,6 @@ function assertRange(label: string, actual: number, min: number, max: number) {
     passed++;
   } else {
     console.error(`  ❌ ${label}: ${actual} ∉ [${min}, ${max}]`);
-    failed++;
-  }
-}
-
-function assertGreaterThan(label: string, actual: number, threshold: number) {
-  if (actual > threshold) {
-    console.log(`  ✅ ${label}: ${actual} > ${threshold}`);
-    passed++;
-  } else {
-    console.error(`  ❌ ${label}: ${actual} ≤ ${threshold}`);
     failed++;
   }
 }

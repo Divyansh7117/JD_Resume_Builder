@@ -15,8 +15,8 @@ const longExperienceBullets = [
 ];
 
 const sampleMultiPageData: ResumeDocumentProps = {
-  name: "Divyansh Agarwal",
-  contact: "divyanshagarwal.work7117@gmail.com • +91-9205216028 • New Delhi, India • linkedin.com/in/divyansh-agarwal7117 • github.com/Divyansh7117",
+  name: "Alex Morgan",
+  contact: "alex.morgan@example.com • (555) 019-2834 • San Francisco, CA • linkedin.com/in/alexmorgan • github.com/alexmorgan",
   summary:
     "Senior Full Stack & Systems Engineer with extensive production experience delivering scalable distributed applications, microservices, and real-time cloud data pipelines. Track record of scaling systems to millions of users while maintaining high reliability and team velocity.",
   experience: [
@@ -113,13 +113,14 @@ async function testTemplates() {
       templateId: tmpl,
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(docElement as any);
     const parsed = await pdfParse(buffer);
 
     console.log(`  ✓ Rendered successfully: ${(buffer.length / 1024).toFixed(1)} KB`);
     console.log(`  ✓ Page Count: ${parsed.numpages} page(s)`);
-    console.log(`  ✓ Name extracted in text: ${parsed.text.toUpperCase().includes("DIVYANSH AGARWAL")}`);
-    console.log(`  ✓ Contact extracted in text: ${parsed.text.includes("divyanshagarwal.work7117@gmail.com")}`);
+    console.log(`  ✓ Name extracted in text: ${parsed.text.toUpperCase().includes("ALEX MORGAN")}`);
+    console.log(`  ✓ Contact extracted in text: ${parsed.text.includes("alex.morgan@example.com")}`);
 
     if (parsed.numpages >= 2) {
       console.log(`  ✅ Multi-page flow verified: Document correctly spans ${parsed.numpages} pages without truncation.\n`);

@@ -50,39 +50,33 @@ async function executeDirectJDExtraction(jdText: string): Promise<JDRequirements
 
 CRITICAL EXTRACTION & CLASSIFICATION RULES:
 1. FULL ATOMIC REQUIREMENT COVERAGE:
-   - Extract every materially distinct capability, skill, and expectation expressed in the JD.
+   - Extract every materially distinct capability, technical skill, tool/framework, methodology, responsibility, and qualification expressed in the JD.
    - Do NOT collapse materially different capabilities into one combined requirement.
-   - Ensure distinct atomic requirements are extracted for:
-     * Core domain/product management and 0-to-1 launches
-     * Specific technology stacks (e.g. Flutter, Supabase, Firebase, React, PostgreSQL, REST APIs, Git/GitHub)
-     * Growth, activation & conversion funnels
-     * Retention, engagement & cohort analysis
-     * Experimentation, hypothesis validation & rapid A/B testing
-     * Product analytics, metrics & KPI dashboards
-     * Deep consumer empathy & understanding user motivations / UX delight
-     * AI-powered products & LLM workflows
-     * AI personalization & recommendation systems
-     * Cross-functional leadership & engineering collaboration
-     * Storytelling & executive stakeholder communication
+   - Extract distinct atomic requirements for:
+     * Specific core technologies, programming languages, frameworks, or tools
+     * Core domain knowledge, specialized methodologies, or technical paradigms
+     * Functional capabilities and role responsibilities
+     * Cross-functional collaboration, leadership, or communication expectations
+     * Minimum experience/tenure criteria, degrees, and certifications
 
 2. REQUIREMENT CRITICALITY CLASSIFICATION ("criticality"):
    - "hard": Mandatory criteria essential for consideration.
-     * Core mandatory technologies explicitly required (e.g. Flutter, Supabase, Python, PostgreSQL when required)
+     * Core mandatory technologies or tools explicitly required (e.g. "must have", "required", "strong proficiency in")
      * Minimum years of experience / tenure constraints
      * Required degrees or mandatory certifications
      * Mandatory on-site location / work authorization
-     * Core non-negotiable domain responsibilities
-   - "soft": Standard expected competencies, secondary skills, or methodologies.
+     * Core non-negotiable role responsibilities
+   - "soft": Standard expected competencies, secondary skills, or standard methodologies.
    - "preferred": Explicitly qualified as "nice to have", "preferred", "bonus", "familiarity with", or "plus".
 
 3. SEPARATE SKILL CAPABILITIES FROM ELIGIBILITY CONSTRAINTS:
-   - "skill_capability": Product competencies, technical skills, analytics, domain knowledge, methodologies.
-   - "eligibility_constraint": Hard qualification criteria such as minimum years of PM experience, domain-specific tenure, location/on-site expectations.
+   - "skill_capability": Technical skills, tools, frameworks, domain expertise, methodologies, and operational capabilities.
+   - "eligibility_constraint": Hard qualification criteria such as minimum years of experience, degree level, certifications, location/on-site expectations, or work authorization.
 
 4. FOR EACH REQUIREMENT, EXTRACT:
-   - "name": Concise, descriptive title of the requirement.
+   - "name": Concise, descriptive title of the requirement (e.g. "React.js", "State Management", "PostgreSQL", "REST APIs", "CI/CD Pipelines", "1–3 Years Experience").
    - "description": Clear description of what the JD specifies.
-   - "category": Dynamic capability dimension (e.g. "engineering", "consumer_product_and_growth", "data_and_experimentation", "consumer_understanding", "ai_technology", "leadership_and_communication", "experience_tenure", "education", "location").
+   - "category": Dynamic capability dimension (e.g. "technical_skill", "frontend", "backend", "database", "infrastructure", "methodology", "domain_expertise", "leadership", "experience_tenure", "education", "location").
    - "requirement_type": "skill_capability" or "eligibility_constraint".
    - "importance": "required", "high", "medium", "low", or "preferred".
    - "criticality": "hard", "soft", or "preferred".

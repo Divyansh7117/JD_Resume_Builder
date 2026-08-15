@@ -36,11 +36,12 @@ export async function POST(request: Request) {
       { tailored: result.tailored, originalResume: result.originalResume },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API /api/tailor error:", error);
     const message = error instanceof Error ? error.message : String(error);
+    const errorName = error instanceof Error ? error.name : "";
 
-    if (error?.name === "LLMRateLimitError" || message.includes("LLM_RATE_LIMIT")) {
+    if (errorName === "LLMRateLimitError" || message.includes("LLM_RATE_LIMIT")) {
       return NextResponse.json(
         {
           error: "AI evaluation is temporarily unavailable because the configured Gemini model has reached its API rate limit. Please try again in a moment.",
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (error?.name === "LLMUnavailableError" || message.includes("LLM_UNAVAILABLE")) {
+    if (errorName === "LLMUnavailableError" || message.includes("LLM_UNAVAILABLE")) {
       return NextResponse.json(
         {
           error: "AI evaluation service is temporarily unavailable. Please try again shortly.",

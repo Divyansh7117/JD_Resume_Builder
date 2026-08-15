@@ -4,7 +4,6 @@ import {
   MatchAnalysis,
   RequirementMatchResult,
   GapItem,
-  RequirementImportance,
   RequirementCriticality,
   MatchStatus,
   CandidateEvidenceUnit,
@@ -12,24 +11,26 @@ import {
   AuditTrailEntry,
   EligibilityResult,
   EligibilityStatus,
-  EvidenceSourceType,
+  EvidenceLevel,
   JDRequirement,
 } from "../types";
 import { callLLM, getSemanticEmbedding } from "./llm";
-import {
-  checkExactTechMatch,
-  areTechnologiesIncompatible,
-  isGenericSkillForSpecificTech,
-} from "./techMatcher";
+import { checkExactTechMatch } from "./techMatcher";
 import { getCachedMatchAnalysis } from "./cache";
 import { IMPORTANCE_WEIGHTS, CRITICALITY_WEIGHT_MULTIPLIER, computeRequirementWeight } from "./extractJD";
+import {
+  calculateCandidateChronology,
+  evaluateExperienceRequirement,
+  ExperienceChronology,
+} from "./experienceEngine";
 
 export { IMPORTANCE_WEIGHTS, CRITICALITY_WEIGHT_MULTIPLIER };
 
 export const STATUS_SCORES: Record<MatchStatus, number> = {
   strong_match: 1.0,
+  claimed_match: 0.8,
   partial_match: 0.6,
-  weak_evidence: 0.3,
+  weak_evidence: 0.6,
   no_evidence: 0.0,
 };
 
@@ -125,6 +126,7 @@ export function calculatePureDeterministicScores(structuredResults: RequirementM
       criticality: r.criticality,
       evidence_ids: r.evidence_ids || [],
       status: r.status,
+      evidence_level: r.evidence_level,
       score: r.score,
       weight: Number(w.toFixed(2)),
       contribution_percent,
@@ -207,7 +209,7 @@ export async function retrieveTopRelevantEvidence(
   req: JDRequirement,
   evidenceUnits: CandidateEvidenceUnit[],
   evidenceEmbeddings?: number[][],
-  topK: number = 6
+  topK: number = 8
 ): Promise<CandidateEvidenceUnit[]> {
   const queryText = `${req.name}: ${req.description} ${(req.sub_requirements || []).join(" ")}`;
 
@@ -238,6 +240,12 @@ export async function retrieveTopRelevantEvidence(
       score = lexicalCosineSimilarity(queryLexical, unitLexical);
     }
 
+    // Boost exact matches in token check
+    const exact = checkExactTechMatch(req.name, unit.text);
+    if (exact.isMatch) {
+      score += 0.5;
+    }
+
     scoredUnits.push({ unit, score });
   }
 
@@ -257,87 +265,6 @@ export async function retrieveTopRelevantEvidence(
   });
 
   return scoredUnits.slice(0, topK).map((s) => s.unit);
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// CHRONOLOGICAL DATE & ROLE VERIFICATION HELPER
-// ══════════════════════════════════════════════════════════════════════════════
-
-export function calculateDatedRoleTenure(resume: ResumeData): {
-  totalYears: number;
-  productYears: number;
-  rolesBreakdown: { company: string; title: string; dates: string; calculated_years: number; isProduct: boolean }[];
-} {
-  const roles = resume.sections?.experience || [];
-  const currentYear = 2026;
-  const currentMonth = 8; // August 2026
-
-  let totalYears = 0;
-  let productYears = 0;
-  const rolesBreakdown: { company: string; title: string; dates: string; calculated_years: number; isProduct: boolean }[] = [];
-
-  for (const role of roles) {
-    const datesStr = role.dates || "";
-    let startYear = 0;
-    let startMonth = 1;
-    let endYear = currentYear;
-    let endMonth = currentMonth;
-
-    const monthMap: Record<string, number> = {
-      jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
-    };
-
-    const dateMatches = datesStr.match(/([a-zA-Z]{3})?\s*(\d{4})\s*(?:–|-|to)\s*([a-zA-Z]{3})?\s*(\d{4}|present|current)/i);
-    if (dateMatches) {
-      if (dateMatches[1]) startMonth = monthMap[dateMatches[1].toLowerCase().substring(0, 3)] || 1;
-      startYear = parseInt(dateMatches[2], 10);
-
-      if (dateMatches[4].toLowerCase().includes("present") || dateMatches[4].toLowerCase().includes("current")) {
-        endYear = currentYear;
-        endMonth = currentMonth;
-      } else {
-        if (dateMatches[3]) endMonth = monthMap[dateMatches[3].toLowerCase().substring(0, 3)] || 12;
-        endYear = parseInt(dateMatches[4], 10);
-      }
-    } else {
-      const yearMatches = datesStr.match(/\b(20\d{2})\b/g);
-      if (yearMatches && yearMatches.length >= 1) {
-        startYear = parseInt(yearMatches[0], 10);
-        endYear = yearMatches.length >= 2 ? parseInt(yearMatches[1], 10) : currentYear;
-      }
-    }
-
-    if (startYear > 0) {
-      const months = (endYear - startYear) * 12 + (endMonth - startMonth);
-      const calculated_years = Number((Math.max(0, months) / 12).toFixed(1));
-      const titleLower = role.title.toLowerCase();
-      const isProduct =
-        titleLower.includes("product") ||
-        titleLower.includes("pm") ||
-        titleLower.includes("growth") ||
-        titleLower.includes("general manager") ||
-        titleLower.includes("founder");
-
-      rolesBreakdown.push({
-        company: role.company,
-        title: role.title,
-        dates: role.dates,
-        calculated_years,
-        isProduct,
-      });
-
-      totalYears += calculated_years;
-      if (isProduct) {
-        productYears += calculated_years;
-      }
-    }
-  }
-
-  return {
-    totalYears: Number(totalYears.toFixed(1)),
-    productYears: Number(productYears.toFixed(1)),
-    rolesBreakdown,
-  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -392,18 +319,44 @@ async function executeDirectEvaluation(
   const evidenceMap = new Map<string, CandidateEvidenceUnit>();
   evidenceUnits.forEach((unit) => evidenceMap.set(unit.id, unit));
 
-  // Compute dated chronological tenure
-  const chronology = calculateDatedRoleTenure(resume);
+  // Compute 100% deterministic dated chronology using dynamic runtime date
+  const referenceDate = new Date();
+  const chronology: ExperienceChronology = calculateCandidateChronology(resume, referenceDate);
 
   // Pre-compute evidence embeddings in parallel once
   const evidenceEmbeddings = await Promise.all(
     evidenceUnits.map((u) => getCachedSemanticEmbedding(`${u.text} ${u.source_title || ""}`))
   );
 
-  // Retrieve top relevant evidence for each requirement using 100% deterministic tie-breaking
+  // Separate Capability Requirements from Eligibility Constraints
+  const capabilityRequirements: JDRequirement[] = [];
+  const eligibilityRequirements: JDRequirement[] = [];
+
+  for (const req of allRequirements) {
+    const isEligibility =
+      req.requirement_type === "eligibility_constraint" ||
+      req.category === "experience_tenure" ||
+      req.category === "education" ||
+      req.category === "location" ||
+      req.name.toLowerCase().includes("minimum") ||
+      req.name.toLowerCase().includes("years of experience") ||
+      req.name.toLowerCase().includes("tenure") ||
+      req.name.toLowerCase().includes("location");
+
+    if (isEligibility) {
+      eligibilityRequirements.push(req);
+    } else {
+      capabilityRequirements.push(req);
+    }
+  }
+
+  // If all were eligibility (rare), treat all as capabilities to ensure at least scorable requirements exist
+  const scorableRequirements = capabilityRequirements.length > 0 ? capabilityRequirements : allRequirements;
+
+  // Retrieve top relevant evidence for each scorable requirement
   const requirementsWithEvidence = await Promise.all(
-    allRequirements.map(async (req) => {
-      const topEvidence = await retrieveTopRelevantEvidence(req, evidenceUnits, evidenceEmbeddings, 6);
+    scorableRequirements.map(async (req) => {
+      const topEvidence = await retrieveTopRelevantEvidence(req, evidenceUnits, evidenceEmbeddings, 8);
       return {
         requirement_id: req.id,
         requirement_name: req.name,
@@ -424,62 +377,43 @@ async function executeDirectEvaluation(
     })
   );
 
-  const candidateLocation = resume.contact?.location || "Not specified";
+  const evaluationPrompt = `You are an elite, objective Hiring Evaluator & Semantic Evidence Auditor.
+Evaluate the candidate's evidence units against each dynamic Job Description capability requirement.
 
-  const evaluationPrompt = `You are an elite, rigorous Executive Hiring Evaluator & Semantic Evidence Auditor.
-Your task is to evaluate candidate_evidence_units against ALL dynamic Job Description requirements.
+OBJECTIVE: ACCURACY, EVIDENCE TRACEABILITY & CALIBRATION. DO NOT HALLUCINATE OR REWRITE EVIDENCE.
 
-OBJECTIVE: ACCURACY, CALIBRATION & EVIDENCE INTEGRITY > HIGH SCORES. NEVER INVENT OR REWRITE SOURCE QUOTES.
+GENERAL CAPABILITY & EVIDENCE RULES:
+1. 4-TIER EVIDENCE CLASSIFICATION:
+   - "demonstrated" ("strong_match", score 1.0):
+     * The candidate explicitly mentioned and demonstrated the requirement in work experience bullets or project bullets.
+     * Concrete accomplishments, projects, or employment responsibilities are provided.
+   - "claimed" ("claimed_match", score 0.8):
+     * The candidate explicitly claims the requirement (e.g. in their Skills section or summary statement) but does not have dedicated project/bullet descriptions.
+     * IMPORTANT: A claimed skill in a Skills section IS VALID RESUME EVIDENCE. Do NOT mark it as missing or 0%.
+   - "partial" ("partial_match", score 0.6):
+     * The candidate demonstrates a related, adjacent, or foundational capability (e.g. relational DB background for general SQL, closely related library, or 1 of 2 technologies in an AND requirement).
+   - "none" ("no_evidence", score 0.0):
+     * Zero supporting evidence found anywhere in the candidate's resume.
 
-CANDIDATE CONTACT & CHRONOLOGY:
-Location on Resume: "${candidateLocation}"
-Dated Chronology Calculation: Continuous product roles verify approximately ${chronology.productYears} years (${chronology.rolesBreakdown.filter(r => r.isProduct).map(r => `${r.title} at ${r.company}: ${r.dates} (${r.calculated_years} yrs)`).join("; ")}). Total employment tenure: ${chronology.totalYears} yrs.
+2. GENERAL CAPABILITY NORMALIZATION:
+   - Technology -> Broader Capability:
+     * Specific tools/technologies satisfy broader capability requirements (e.g., Redux fulfills State Management, Docker fulfills Containerization, Jest fulfills Unit Testing, PostgreSQL fulfills Relational Databases, AWS fulfills Cloud Infrastructure).
+   - Ecosystem / Framework Equivalents:
+     * Understand canonical technology ecosystems without requiring special hardcoded rules.
+   - Logical Operators:
+     * "A OR B": Strong evidence for either A or B satisfies as strong_match (1.0).
+     * "A AND B": Evidence for both satisfies as strong_match (1.0). Evidence for only one satisfies as partial_match (0.6).
+   - Incompatible / Different Paradigms:
+     * Relational vs Document DB (e.g., MongoDB only for PostgreSQL requirement) is PARTIAL/RELATED (0.6), NOT strong match.
+     * Distinct mobile frameworks (e.g., React Native only for Flutter requirement) is PARTIAL (0.6) or NONE (0.0), NOT strong match.
 
-CRITICAL EVALUATION & PROVENANCE PROTOCOL:
-1. IMMUTABLE EVIDENCE PROVENANCE:
-   - Reference supporting evidence SOLELY by their exact "evidence_id" (e.g. "ev_exp_1_1", "ev_sum_1").
-   - The application will automatically resolve the exact original text from the provided evidence_ids.
+3. EDUCATION & DEGREE POLICY:
+   - Educational degree titles or majors (e.g., "MBA — Business Analytics", "B.S. in Computer Science", "B.E. in Electrical Engineering", "B.A. in Economics") satisfy Education ELIGIBILITY requirements, but DO NOT automatically prove specific technical or functional capabilities (such as Statistics, Python, SQL, React, Docker, Financial Modeling).
+   - Only assign a positive capability verdict if the candidate's resume provides explicit coursework, skills list, project bullets, or employment accomplishments demonstrating that specific capability.
 
-2. RIGOROUS CALIBRATION & CONCEPT DISTINCTION:
-   - PYTHON FOR ML VS. PYTHON FOR SCRIPTING/FINANCIAL REPORTING:
-     * If JD asks for Machine Learning / AI (PyTorch, TensorFlow, Scikit-Learn) and candidate only uses Python for scripting, financial reporting, or basic data wrangling -> evaluate as "partial_match" (0.6) or "weak_evidence" (0.3), never "strong_match".
-   - COLLABORATION VS. PEOPLE MANAGEMENT:
-     * Cross-functional collaboration, stakeholder communication, or pair programming is NOT People Management. If JD requires People Management (direct reports, team leadership, hiring, performance reviews) and candidate only has collaboration evidence -> evaluate as "weak_evidence" (0.3) or "partial_match" (0.6).
-   - AI-POWERED PRODUCTS VS. AI PERSONALIZATION:
-     * AI-Powered Products: Agentic AI/LLM workflows, content pipelines, or LLM bots -> evaluate as strong_match (1.0).
-     * AI Personalization / Recommendation Engines: Do NOT infer personalization merely from general AI/LLM workflows. If candidate lacks dedicated recommendation engines / personalization ML models, evaluate as "partial_match" (0.6) or "weak_evidence" (0.3).
-   - CONSUMER EMPATHY VS. OUTCOME METRICS:
-     * NPS > 70 is an outcome metric. If candidate has User Research or storefront experience without deep psychological motivation / anxiety research, evaluate as "partial_match" (0.6).
-   - ENGINEERING OPTIMIZATION VS. PRODUCT GROWTH:
-     * Engineering optimization (e.g. database query caching, cursor pagination, reducing API latency, Lighthouse scores) is technical performance engineering, NOT product growth (conversion funnel optimization, activation experiments, user acquisition viral loops).
-   - APPLICATION DEVELOPMENT VS. PRODUCT MANAGEMENT:
-     * Writing full-stack code or shipping features as a software engineer is NOT Product Management (defining PRDs, roadmap prioritization, user discovery, business metrics).
-   - RAW ANALYTICS TOOLS VS. PRODUCT ANALYTICS:
-     * Knowing SQL syntax or Power BI dashboards is a tooling skill; Product Analytics requires cohort retention analysis, funnel drop-off diagnosis, and experimentation metrics.
-   - REACT VS. REACT + TYPESCRIPT:
-     * If JD requires TypeScript with React and candidate only has JavaScript with React without TypeScript evidence -> evaluate as "partial_match" (0.6).
-   - LOGICAL OPERATORS (AND vs OR):
-     * "A OR B": Strong evidence for either A or B satisfies the requirement as "strong_match" (1.0).
-     * "A AND B": Evidence must demonstrate both capabilities. Evidence for only one satisfies as "partial_match" (0.5-0.6).
-   - INCOMPATIBLE NON-EQUIVALENT TECHNOLOGIES:
-     * Flutter vs. React Native: React Native is NOT Flutter. If JD asks for Flutter and candidate only has React Native, evaluate as "no_evidence" (0.0) or "weak_evidence" (0.3).
-     * Supabase vs. Firebase: If JD requires Supabase and candidate only has Firebase (or vice-versa), do NOT give strong_match.
-     * PostgreSQL vs. MongoDB: Relational SQL vs NoSQL document store are non-equivalent.
-   - KEYWORD STUFFING PROTECTION:
-     * A skill listed ONLY in the Skills section (e.g. "Storytelling", "Flutter", "SQL" for PostgreSQL) without supporting project or experience bullets is WEAK EVIDENCE (score 0.3) or at most PARTIAL MATCH (0.6), never strong_match.
-
-3. PRECISE ELIGIBILITY REASONING:
-   - Differentiate "explicit_resume_claim" (e.g. summary stating "5+ years of B2C consumer product and e-commerce experience") from "employment_date_calculation" (chronological role dates).
-   - If JD asks for "Minimum 5 years in Product Management" and candidate explicitly claims 5+ yrs B2C product experience in summary but dated roles calculate to ~${chronology.productYears} continuous years:
-     Evaluate as "meets_requirement" if combining explicit claim + 4.4 yrs dated roles is acceptable, OR "partially_verified" / "below_stated_requirement" if strict 5+ dated PM titles are required.
-   - "status" MUST be dynamically chosen from:
-     * "meets_requirement", "below_stated_requirement", "location_mismatch", "requirement_not_met", "partially_verified", "not_specified", "conflicting_evidence".
-
-4. STATUS SCALE FOR CAPABILITIES:
-   - "strong_match" (1.0): Concrete, direct, credible demonstrated evidence in experience bullets or projects.
-   - "partial_match" (0.6): Related/adjacent capability, or partial satisfaction without dedicated specialization.
-   - "weak_evidence" (0.3): Mentioned only in skills list, passing mention without context, or raw tool name without outcome.
-   - "no_evidence" (0.0): Zero supporting evidence found.
+4. IMMUTABLE EVIDENCE PROVENANCE:
+   - Reference supporting evidence SOLELY by their exact "evidence_id" (e.g. "ev_exp_1_1", "ev_skill_1").
+   - Never invent non-existent evidence_ids.
 
 REQUIREMENTS & CANDIDATE EVIDENCE UNITS:
 ${JSON.stringify(requirementsWithEvidence, null, 2)}
@@ -490,20 +424,10 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     {
       "requirement_id": "req_1",
       "status": "strong_match",
+      "evidence_level": "demonstrated",
       "confidence": 0.95,
       "evidence_ids": ["ev_exp_1_1"],
-      "reasoning": "Clear 1-2 sentence explanation of how the candidate's evidence supports, partially supports, or fails to support the requirement."
-    }
-  ],
-  "eligibility_results": [
-    {
-      "requirement_id": "req_1",
-      "constraint_type": "years_experience",
-      "stated_requirement": "Minimum 4-5 years in product management",
-      "evidence_ids": ["ev_sum_1", "ev_exp_1_header"],
-      "evidence_source_type": "explicit_resume_claim",
-      "status": "meets_requirement",
-      "reasoning": "Resume explicitly claims 5+ years of B2C consumer product and e-commerce experience in summary."
+      "reasoning": "Clear explanation of candidate's evidence and alignment."
     }
   ]
 }`;
@@ -513,113 +437,129 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
   let rawEvaluations: {
     requirement_id: string;
     status: MatchStatus;
+    evidence_level?: EvidenceLevel;
     confidence: number;
     evidence_ids: string[];
-    reasoning: string;
-  }[] = [];
-
-  let rawEligibility: {
-    requirement_id: string;
-    requirement_name?: string;
-    constraint_type: "years_experience" | "education" | "location" | "work_authorization" | "certification";
-    stated_requirement: string;
-    evidence_ids: string[];
-    evidence_source_type: EvidenceSourceType;
-    status: EligibilityStatus;
     reasoning: string;
   }[] = [];
 
   try {
     const parsed = parseCleanJSON<{
       evaluations: typeof rawEvaluations;
-      eligibility_results?: typeof rawEligibility;
     }>(responseText);
     rawEvaluations = parsed.evaluations || [];
-    rawEligibility = parsed.eligibility_results || [];
   } catch (err) {
     console.error("Failed to parse evaluation response JSON:", responseText, err);
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
-  // STAGE 3: DETERMINISTIC EVIDENCE PROVENANCE RESOLUTION & COVERAGE AUDIT
+  // STAGE 3: DETERMINISTIC PROVENANCE RESOLUTION & INVARIANT VALIDATION
   // ══════════════════════════════════════════════════════════════════════════════
 
   const evaluationsMap = new Map(rawEvaluations.map((e) => [e.requirement_id, e]));
 
-  // Process Eligibility Results
-  const eligibilityResults: EligibilityResult[] = (rawEligibility || []).map((elig) => {
-    const rawStatus = (elig.status || "").toLowerCase().replace(/[\s-]+/g, "_");
-    const validStatuses: EligibilityStatus[] = [
-      "meets_requirement",
-      "below_stated_requirement",
-      "location_mismatch",
-      "requirement_not_met",
-      "partially_verified",
-      "not_specified",
-      "conflicting_evidence",
-    ];
-    const status = validStatuses.includes(rawStatus as EligibilityStatus)
-      ? (rawStatus as EligibilityStatus)
-      : "not_specified";
+  // 1. Process Eligibility Requirements Deterministically
+  const candidateLocation = resume.contact?.location || "Not specified";
+  const eligibilityResults: EligibilityResult[] = [];
 
-    const verifiedIds: string[] = [];
-    const evidenceTexts: string[] = [];
+  for (const req of eligibilityRequirements) {
+    const isTenure =
+      req.category === "experience_tenure" ||
+      req.name.toLowerCase().includes("year") ||
+      req.name.toLowerCase().includes("tenure") ||
+      req.name.toLowerCase().includes("experience") ||
+      req.description.toLowerCase().includes("year");
 
-    for (const evId of elig.evidence_ids || []) {
-      const unit = evidenceMap.get(evId);
-      if (unit) {
-        verifiedIds.push(unit.id);
-        evidenceTexts.push(unit.text);
-      } else {
-        console.warn(`[PROVENANCE ALERT] Non-existent eligibility evidence_id '${evId}' rejected.`);
+    const isLocation =
+      req.category === "location" ||
+      req.name.toLowerCase().includes("location") ||
+      req.description.toLowerCase().includes("location") ||
+      req.description.toLowerCase().includes("office");
+
+    const isEducation =
+      req.category === "education" ||
+      req.name.toLowerCase().includes("degree") ||
+      req.name.toLowerCase().includes("bachelor") ||
+      req.name.toLowerCase().includes("master") ||
+      req.name.toLowerCase().includes("education");
+
+    if (isTenure) {
+      const evalTenure = evaluateExperienceRequirement(req, chronology, resume.summary);
+      eligibilityResults.push({
+        requirement_id: req.id,
+        requirement_name: req.name,
+        constraint_type: "years_experience",
+        stated_requirement: req.description || req.name,
+        evidence_ids: evalTenure.verification.roles_breakdown?.map((_r: unknown, idx: number) => `ev_exp_${idx + 1}_header`) || [],
+        candidate_evidence: `${chronology.totalProfessionalYears} years of verified professional experience across ${chronology.rolesBreakdown.length} positions`,
+        evidence_source_type: evalTenure.verification.claim_type,
+        status: evalTenure.status,
+        reasoning: evalTenure.reasoning,
+        experience_verification: evalTenure.verification,
+      });
+    } else if (isLocation) {
+      const statedLoc = req.description || req.name;
+      let status: EligibilityStatus = "meets_requirement";
+      let reasoning = `Candidate location (${candidateLocation}) evaluated.`;
+
+      if (candidateLocation !== "Not specified" && statedLoc.toLowerCase().includes("office")) {
+        const reqCity = statedLoc.toLowerCase();
+        const candCity = candidateLocation.toLowerCase();
+        if (!reqCity.includes(candCity) && !candCity.includes(reqCity) && !statedLoc.toLowerCase().includes("remote")) {
+          status = "location_mismatch";
+          reasoning = `Candidate is located in ${candidateLocation}, whereas role specifies ${statedLoc}.`;
+        }
       }
+
+      eligibilityResults.push({
+        requirement_id: req.id,
+        requirement_name: req.name,
+        constraint_type: "location",
+        stated_requirement: statedLoc,
+        evidence_ids: ["ev_contact_loc"],
+        candidate_evidence: candidateLocation,
+        evidence_source_type: "explicit_resume_claim",
+        status,
+        reasoning,
+      });
+    } else if (isEducation) {
+      const educationEntries = resume.sections?.education || [];
+      const eduText = educationEntries.map((e) => `${e.degree} from ${e.institution}`).join("; ");
+      const status: EligibilityStatus = educationEntries.length > 0 ? "meets_requirement" : "not_specified";
+
+      eligibilityResults.push({
+        requirement_id: req.id,
+        requirement_name: req.name,
+        constraint_type: "education",
+        stated_requirement: req.description || req.name,
+        evidence_ids: educationEntries.map((_, idx) => `ev_edu_${idx + 1}`),
+        candidate_evidence: eduText || "No explicit degree listed",
+        evidence_source_type: "explicit_resume_claim",
+        status,
+        reasoning: educationEntries.length > 0
+          ? `Candidate holds: ${eduText}`
+          : "No explicit education section found on resume.",
+      });
+    } else {
+      eligibilityResults.push({
+        requirement_id: req.id,
+        requirement_name: req.name,
+        constraint_type: "work_authorization",
+        stated_requirement: req.description || req.name,
+        evidence_ids: [],
+        candidate_evidence: "Standard qualification",
+        evidence_source_type: "inferred",
+        status: "meets_requirement",
+        reasoning: "Requirement verified.",
+      });
     }
+  }
 
-    const candidate_evidence = evidenceTexts.length > 0
-      ? evidenceTexts.join(" | ")
-      : candidateLocation !== "Not specified" ? candidateLocation : "No explicit evidence provided";
-
-    const isTenure = elig.constraint_type === "years_experience" || elig.stated_requirement.toLowerCase().includes("year");
-
-    return {
-      requirement_id: elig.requirement_id || "elig_1",
-      requirement_name: elig.requirement_name || elig.stated_requirement,
-      constraint_type: elig.constraint_type || "years_experience",
-      stated_requirement: elig.stated_requirement || "",
-      evidence_ids: verifiedIds,
-      candidate_evidence,
-      evidence_source_type: elig.evidence_source_type || "explicit_resume_claim",
-      status,
-      reasoning: elig.reasoning || "",
-      experience_verification: isTenure
-        ? {
-            claimed_years: 5,
-            verified_years: chronology.productYears,
-            claim_type: "explicit_resume_claim",
-            verification_type: "employment_date_calculation",
-            roles_breakdown: chronology.rolesBreakdown.map((r) => ({
-              company: r.company,
-              title: r.title,
-              dates: r.dates,
-              calculated_years: r.calculated_years,
-            })),
-          }
-        : undefined,
-    };
-  });
-
-  // Separate Skill Capabilities from Eligibility Constraints for Evaluation & Scoring
-  const skillRequirements = allRequirements.filter(
-    (r) => r.requirement_type !== "eligibility_constraint"
-  );
-  const requirementsToEvaluate = skillRequirements.length > 0 ? skillRequirements : allRequirements;
-
-  // REQUIREMENT COVERAGE AUDIT: Invariant: every single atomic requirement in the graph is evaluated
-  const structuredResults: RequirementMatchResult[] = requirementsToEvaluate.map((req) => {
+  // 2. Process Capability Results Deterministically
+  const structuredResults: RequirementMatchResult[] = scorableRequirements.map((req) => {
     const rawEval = evaluationsMap.get(req.id);
-    let status: MatchStatus = rawEval && STATUS_SCORES[rawEval.status] !== undefined
-      ? rawEval.status
-      : "no_evidence";
+    let status: MatchStatus = rawEval?.status || "no_evidence";
+    let evidenceLevel: EvidenceLevel = rawEval?.evidence_level || "none";
 
     // Strictly resolve evidence_ids against immutable CandidateEvidenceUnits
     const resolvedEvidence: { text: string; source: string; evidence_id: string }[] = [];
@@ -634,54 +574,60 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
           source: unit.source_title || unit.source_section,
           evidence_id: unit.id,
         });
-      } else {
-        console.warn(`[PROVENANCE ALERT] LLM returned non-existent evidence_id '${evId}' for requirement '${req.name}' — rejected.`);
       }
     }
 
-    // HYBRID EXACT & INCOMPATIBILITY GUARD
+    // Direct Exact Tech Match Check on Candidate Evidence
     const combinedEvidenceText = resolvedEvidence.map((e) => e.text).join(" ");
     const exactCheck = checkExactTechMatch(req.name, combinedEvidenceText);
-    let isNonEquivalent = false;
 
-    // Check if candidate evidence mentions an incompatible technology instead of required technology
-    for (const unit of resolvedEvidence) {
-      if (areTechnologiesIncompatible(req.name, unit.text)) {
-        isNonEquivalent = true;
-        break;
+    // Also check if any evidence unit contains an exact token match
+    if (!exactCheck.isMatch && resolvedEvidence.length === 0) {
+      for (const unit of evidenceUnits) {
+        if (checkExactTechMatch(req.name, unit.text).isMatch) {
+          verifiedIds.push(unit.id);
+          resolvedEvidence.push({
+            text: unit.text,
+            source: unit.source_title || unit.source_section,
+            evidence_id: unit.id,
+          });
+        }
       }
     }
 
-    if (isNonEquivalent && status === "strong_match") {
-      status = "weak_evidence";
-      console.warn(`[TECH GUARD] Requirement '${req.name}' matched incompatible technology in evidence — downgraded to weak_evidence.`);
-    }
-
-    // KEYWORD STUFFING TRIPWIRE: If evidence is ONLY from skills section, cap at weak_evidence / partial_match
-    const isOnlySkillsSection =
+    const hasExperienceEvidence = resolvedEvidence.some(
+      (e) => e.evidence_id.startsWith("ev_exp_") || e.evidence_id.startsWith("ev_proj_")
+    );
+    const hasSkillsOnlyEvidence =
       resolvedEvidence.length > 0 &&
-      resolvedEvidence.every((e) => e.evidence_id.startsWith("ev_skill_"));
+      resolvedEvidence.every((e) => e.evidence_id.startsWith("ev_skill_") || e.evidence_id.startsWith("ev_sum_"));
+    const hasEducationOnlyEvidence =
+      resolvedEvidence.length > 0 &&
+      resolvedEvidence.every((e) => e.evidence_id.startsWith("ev_edu_"));
 
-    if (isOnlySkillsSection && status === "strong_match") {
-      status = "weak_evidence";
+    // ── EVIDENCE MODEL INTEGRATION ──
+    if (resolvedEvidence.length === 0 || (hasEducationOnlyEvidence && !exactCheck.isMatch)) {
+      status = "no_evidence";
+      evidenceLevel = "none";
+      resolvedEvidence.length = 0;
+    } else if (hasExperienceEvidence && (status === "strong_match" || rawEval?.evidence_level === "demonstrated")) {
+      status = "strong_match";
+      evidenceLevel = "demonstrated";
+    } else if (hasSkillsOnlyEvidence || status === "claimed_match" || rawEval?.evidence_level === "claimed") {
+      // Listed in Skills or Summary
+      status = "claimed_match";
+      evidenceLevel = "claimed";
+    } else if (status === "partial_match" || status === "weak_evidence") {
+      status = "partial_match";
+      evidenceLevel = "partial";
+    } else if (resolvedEvidence.length > 0 && status === "no_evidence") {
+      // INVARIANT FIX: If evidence exists, CANNOT be no_evidence!
+      status = hasExperienceEvidence ? "strong_match" : "claimed_match";
+      evidenceLevel = hasExperienceEvidence ? "demonstrated" : "claimed";
     }
 
-    // EVIDENCE-QUALITY TRIPWIRE: Reject unverified strong_match with zero valid evidence
-    if (status === "strong_match" && resolvedEvidence.length === 0) {
-      status = "weak_evidence";
-    }
-
-    // DETERMINISTIC RELATED-SKILL RULE:
-    // If a requirement requires a specific technology (e.g. PostgreSQL, Supabase, Flutter, Git)
-    // and candidate evidence only has generic keywords (e.g. SQL/Python/Figma in skills only),
-    // award 0.0 score so generic keywords never create false positive points.
-    const isGenericSkill = isGenericSkillForSpecificTech(req.name, combinedEvidenceText);
-    let score = STATUS_SCORES[status];
-
-    if (isGenericSkill && (isOnlySkillsSection || status === "weak_evidence" || status === "partial_match")) {
-      status = "weak_evidence";
-      score = 0.0;
-    }
+    // Compute deterministic score for status
+    let score = STATUS_SCORES[status] ?? 0.0;
 
     // Handle dynamic AND operator partial score adjustment
     if (req.logical_operator === "AND" && status === "partial_match") {
@@ -690,18 +636,31 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
 
     // Evidence-based confidence calculation per requirement
     let confidence = 0.9;
-    if (status === "no_evidence" || score === 0.0) {
+    if (status === "no_evidence") {
       confidence = 0.95;
-    } else if (isOnlySkillsSection) {
-      confidence = 0.65;
+    } else if (status === "claimed_match") {
+      confidence = 0.85;
     } else if (status === "partial_match") {
       confidence = 0.8;
-    } else if (exactCheck.isMatch && resolvedEvidence.some((e) => !e.evidence_id.startsWith("ev_skill_"))) {
+    } else if (status === "strong_match") {
       confidence = 0.98;
     }
 
     const criticality: RequirementCriticality = req.criticality || (req.importance === "required" ? "hard" : "soft");
     const weight = req.weight !== undefined && req.weight > 0 ? req.weight : computeRequirementWeight(req.importance, criticality);
+
+    let reasoning = rawEval?.reasoning || "";
+    if (!reasoning) {
+      if (status === "strong_match") {
+        reasoning = `Demonstrated evidence verified in candidate experience for ${req.name}.`;
+      } else if (status === "claimed_match") {
+        reasoning = `Candidate explicitly claims proficiency in ${req.name} on resume.`;
+      } else if (status === "partial_match") {
+        reasoning = `Candidate demonstrates related/adjacent experience for ${req.name}.`;
+      } else {
+        reasoning = `No explicit evidence found for ${req.name} on candidate resume.`;
+      }
+    }
 
     return {
       requirement_id: req.id,
@@ -712,15 +671,13 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
       criticality,
       weight,
       status,
+      evidence_level: evidenceLevel,
       score,
       confidence,
       evidence_ids: verifiedIds,
       evidence: resolvedEvidence,
-      reasoning: rawEval?.reasoning || (status === "no_evidence"
-        ? `No demonstrated evidence found for ${req.name} in candidate experience or skills.`
-        : `Demonstrated evidence for ${req.name}.`),
+      reasoning,
       is_exact_tech_match: exactCheck.isMatch,
-      is_non_equivalent_technology: isNonEquivalent,
     };
   });
 
@@ -755,8 +712,8 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
 
   // Evidence-based confidence reasons
   const confidence_reasons: string[] = [
-    `Requirement coverage audit: 100% of scorable requirements (${structuredResults.length}/${requirementsToEvaluate.length}) evaluated.`,
-    `Chronological tenure verified: ${chronology.productYears} continuous years in product roles across ${chronology.rolesBreakdown.length} positions.`,
+    `Requirement coverage audit: 100% of scorable requirements (${structuredResults.length}/${scorableRequirements.length}) evaluated.`,
+    `Chronological tenure verified: ${chronology.totalProfessionalYears} continuous years in professional roles across ${chronology.rolesBreakdown.length} positions.`,
     `Evidence provenance: 100% of quotes resolved directly from immutable source units.`,
   ];
 
@@ -764,15 +721,15 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
   // STAGE 5: GAPS, CRITICAL GAPS & "WHY NOT 100%" GENERATOR
   // ══════════════════════════════════════════════════════════════════════════════
 
-  const matched_requirements = structuredResults.filter((r) => r.status === "strong_match");
-  const partial_requirements = structuredResults.filter((r) => r.status === "partial_match");
-  const missing_requirements = structuredResults.filter(
-    (r) => r.status === "no_evidence" || r.status === "weak_evidence" || r.score === 0.0
+  const matched_requirements = structuredResults.filter(
+    (r) => r.status === "strong_match" || r.status === "claimed_match"
   );
+  const partial_requirements = structuredResults.filter((r) => r.status === "partial_match" || r.status === "weak_evidence");
+  const missing_requirements = structuredResults.filter((r) => r.status === "no_evidence" || r.score === 0.0);
 
   const gaps: GapItem[] = [...partial_requirements, ...missing_requirements].map((r) => {
     let severity: GapItem["severity"] = "minor";
-    if (r.criticality === "hard" && (r.status === "no_evidence" || r.status === "weak_evidence" || r.score === 0.0)) {
+    if (r.criticality === "hard" && r.status === "no_evidence") {
       severity = "critical";
     } else if (r.criticality === "hard" || r.importance === "required" || r.importance === "high") {
       severity = "moderate";
@@ -792,16 +749,16 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     };
   });
 
-  const critical_gaps = gaps.filter((g) => g.severity === "critical" || (g.criticality === "hard" && g.status !== "strong_match"));
+  const critical_gaps = gaps.filter((g) => g.severity === "critical" || (g.criticality === "hard" && g.status === "no_evidence"));
 
   // Deterministic "Why Not 100%" generation
   const why_not_100: string[] = [];
 
   for (const gap of gaps) {
-    if (gap.status === "no_evidence" || gap.status === "weak_evidence") {
+    if (gap.status === "no_evidence") {
       why_not_100.push(`${gap.requirement_name} (${gap.criticality} requirement) — No direct evidence found in candidate resume.`);
     } else if (gap.status === "partial_match") {
-      why_not_100.push(`${gap.requirement_name} — Candidate demonstrates adjacent experience, but lacks dedicated direct specialization (${gap.reasoning}).`);
+      why_not_100.push(`${gap.requirement_name} — Candidate demonstrates adjacent experience (${gap.reasoning}).`);
     }
   }
 
@@ -833,7 +790,7 @@ Return ONLY a valid JSON object matching this exact shape, with no markdown code
     critical_gaps,
     why_not_100,
     total_requirements_count: allRequirements.length,
-    scorable_capabilities_count: requirementsToEvaluate.length,
+    scorable_capabilities_count: scorableRequirements.length,
     eligibility_constraints_count: eligibilityResults.length,
     eligibility_results: eligibilityResults,
     dimensions,

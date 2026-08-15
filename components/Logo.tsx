@@ -24,6 +24,7 @@ export default function Logo({ className = "", showText = true, size = "md" }: L
   return (
     <div className={`inline-flex items-center gap-2 sm:gap-3 group cursor-pointer max-w-full ${className}`}>
       {/* PNG Logo Image from /public/logo.png */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/logo.png"
         alt="JD Resume Logo"

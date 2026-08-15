@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { pdf } from "@react-pdf/renderer";
-import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import ResumeDocument from "@/components/ResumeDocument";
 import { extractCleanName } from "@/lib/parseResume";
 import Navbar from "@/components/Navbar";
@@ -81,113 +81,7 @@ const TEMPLATES: TemplateMeta[] = [
   },
 ];
 
-const PRESETS = [
-  {
-    id: "frontend",
-    title: "💻 Frontend Lead",
-    jd: `Senior Frontend Developer | Acme Commerce
-Location: Remote | Experience: 4+ years
 
-About the Role:
-We are looking for a Senior Frontend Developer to lead the UI development of our e-commerce web applications.
-
-Required Skills & Expertise:
-- Strong proficiency in React, TypeScript, and Vue.js
-- Expertise in Tailwind CSS and responsive design
-- Experience with Web Performance optimization and Core Web Vitals
-- Hands-on experience with E2E testing using Cypress and Playwright
-- Proficiency with GraphQL and REST API integration
-- Experience collaborating with UI/UX designers in Figma
-
-Nice to Have:
-- Experience with Next.js and Server-Side Rendering (SSR)
-- Knowledge of Micro-frontends architecture`,
-    resume: `DAVID MILLER
-david.miller@example.com | (555) 321-7654 | Austin, TX | github.com/davidmiller
-
-PROFESSIONAL EXPERIENCE
-Frontend Developer | RetailPulse Inc. | Feb 2021 - Present
-• Developed dynamic single-page web applications using React, JavaScript, and HTML5/CSS3.
-• Integrated REST APIs for dynamic inventory sync and payment processing.
-• Wrote unit and integration tests using Jest and React Testing Library, maintaining 85% test coverage.
-
-Web Developer | WebCraft Studios | Aug 2018 - Jan 2021
-• Built responsive client websites using Vue.js, Tailwind CSS, and HTML5.
-• Optimized web asset delivery and image lazy-loading, improving page performance scores by 35%.
-
-PROJECTS
-StoreFront UI Kit - Open Source Component Library
-• Created a lightweight accessible React UI component library published on npm.
-
-SKILLS
-React, Vue.js, JavaScript, HTML5, CSS3, Tailwind CSS, REST APIs, Jest, Git, Web Performance`,
-  },
-  {
-    id: "pm",
-    title: "🚀 Product Manager",
-    jd: `Job Title: Product Manager II – Storefront & Growth (TOING)
-Location: Bangalore, Karnataka (3 days a week in office)
-Experience: Minimum of 4-5 years in product management, with strong experience in B2C products and growth-led impact.
-
-About TOING
-Toing is an affordability-first food ordering app built for students and young professionals.
-In this role, you'll own the end-to-end consumer product and growth journey, from acquiring first-time users to building loyal, repeat customers.
-
-Key Requirements:
-• 4-5 years in Product Management owning B2C products.
-• Proven track record owning conversion funnels, activation, engagement, and retention.
-• Experience designing rapid A/B experiments and cohort-level retention analysis.
-• Expertise with Product Analytics tools (SQL, Power BI, dashboards).
-• Understanding of AI-powered product design and personalization.
-• Strong storytelling and executive communication.`,
-    resume: `RACHIT AGARWAL
-+91-9811996540 • agarwalrachit42@gmail.com • New Delhi, India
-
-SUMMARY
-Product & growth professional with 5+ years of B2C consumer product and e-commerce experience at PhysicsWallah (EdTech), owning 0→1 launches, P&L, and full-funnel strategy across e-commerce, offline coaching, and scholarship platforms. Founded and lead PW’s central AI team, building and scaling agentic AI/LLM workflows into production. Built and scaled PW Store (₹200Cr+ revenue, 3,000+ SKUs, 50K DAU) and India’s largest scholarship test (25L+ students, ₹700Cr+ business impact).
-
-EXPERIENCE
-General Manager – Product & Growth
-PhysicsWallah · Delhi | Jun 2024 – Present
-• Founded and lead PW’s central AI team, building and scaling agentic AI/LLM workflows into production.
-• Scaled India’s largest scholarship test (NSAT) to 25L+ students across 10,000+ pincodes, driving ₹700Cr+ in business impact.
-• Built BTL growth products (SAATHI, HOME Demo) expanding student reach and generating ₹500Cr+ revenue.
-
-Product Owner - E-commerce (PW Store)
-PhysicsWallah · Delhi | Mar 2022 – Jun 2024
-• Built PW Store, a B2C e-commerce product, from zero: scaled to 3,000+ SKUs, ₹200Cr+ in annual revenue, and 50K DAU, while maintaining NPS above 70.
-• Owned integration of PW Store’s Order Management System (OMS) end-to-end.
-• Tripled homepage-to-checkout conversion (1.75% → 5%) by forming and testing onboarding and checkout hypotheses.
-• Improved retention 40% via CLM-led, cohort-based product decisions and grew organic traffic 50%.
-
-SKILLS
-B2C Product Management, 0→1 Launches, Funnel Optimisation, Cohort Analysis, A/B Testing, Growth Strategy, SQL, Python, Power BI, Storytelling, AI Product Design`,
-  },
-  {
-    id: "backend",
-    title: "⚡ Backend Engineer",
-    jd: `Backend Engineer | CloudScale Data
-Location: Remote | Experience: 3+ years
-
-Responsibilities:
-- Build high-performance REST APIs using Python and FastAPI
-- Design and optimize PostgreSQL relational database schemas
-- Containerize services using Docker and deploy to Kubernetes
-- Implement caching layer using Redis`,
-    resume: `ALEX TURNER
-alex.turner@example.com | San Francisco, CA | github.com/alexturner
-
-EXPERIENCE
-Backend Engineer | CloudScale | 2021 - Present
-• Designed and shipped 15+ high-throughput REST APIs using Python and FastAPI.
-• Optimized PostgreSQL relational database schemas, reducing query latency by 45%.
-• Containerized microservices using Docker and managed deployments on Kubernetes.
-• Built Redis distributed caching layer handling 100K requests/minute.
-
-SKILLS
-Python, FastAPI, PostgreSQL, Docker, Kubernetes, Redis, REST APIs, Git`,
-  },
-];
 
 function TemplateMiniaturePreview({ template }: { template: TemplateMeta }) {
   if (template.layoutType === "sidebar") {
@@ -254,7 +148,7 @@ function TemplateMiniaturePreview({ template }: { template: TemplateMeta }) {
       <div className="w-full h-40 bg-[#0F141C] text-[#E2E8F0] rounded-lg overflow-hidden border border-[#10B981]/40 shadow-inner p-2.5 space-y-1.5 text-[7px] leading-tight select-none pointer-events-none font-mono">
         <div className="flex justify-between items-center border-b border-[#1E293B] pb-1">
           <div>
-            <div className="font-bold text-[8px] text-[#10B981]">// ELENA ROSTOVA</div>
+            <div className="font-bold text-[8px] text-[#10B981]">{"// "}ELENA ROSTOVA</div>
             <div className="text-[6px] text-[#94A3B8]">Creative Technologist</div>
           </div>
           <div className="text-[6px] text-[#10B981]">REMOTE</div>
@@ -354,7 +248,6 @@ function TemplateMiniaturePreview({ template }: { template: TemplateMeta }) {
 }
 
 export default function AppPage() {
-  const shouldReduceMotion = useReducedMotion();
   const [jdText, setJdText] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("ats-standard");
@@ -383,16 +276,7 @@ export default function AppPage() {
 
   const canSubmit = jdText.trim().length > 0 && resumeText.trim().length > 0 && !loading;
 
-  function loadPreset(presetId: string) {
-    const p = PRESETS.find((item) => item.id === presetId);
-    if (p) {
-      setJdText(p.jd);
-      setResumeText(p.resume);
-      setJdFileName(null);
-      setResumeFileName(null);
-      setError(null);
-    }
-  }
+
 
   function clearAll() {
     setJdText("");
@@ -498,11 +382,7 @@ export default function AppPage() {
 
   // Live real-time 2-minute progress timer & stage progression
   useEffect(() => {
-    if (!loading) {
-      setElapsedSeconds(0);
-      setLoadingStage(0);
-      return;
-    }
+    if (!loading) return;
 
     const interval = setInterval(() => {
       setElapsedSeconds((prev) => {
@@ -520,9 +400,9 @@ export default function AppPage() {
     return () => clearInterval(interval);
   }, [loading]);
 
-
   async function handleSubmit() {
     setLoading(true);
+    setElapsedSeconds(0);
     setLoadingStage(0);
     setError(null);
     setResult(null);
@@ -634,24 +514,12 @@ export default function AppPage() {
             </div>
           </div>
 
-          {/* Quick Presets Inline */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            <span className="text-[10px] font-label text-[#64748B] uppercase font-bold shrink-0 mr-1 hidden lg:inline">
-              Presets:
-            </span>
-            {PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                onClick={() => loadPreset(preset.id)}
-                className="text-[11px] font-label px-2.5 py-1.5 rounded-lg bg-[#111622] border border-[#232D3F] hover:border-[#3654FF] hover:bg-[#1E293B] text-[#94A3B8] hover:text-white transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-sm"
-              >
-                {preset.title}
-              </button>
-            ))}
+          {/* Actions Bar */}
+          <div className="flex items-center gap-2">
             {(jdText || resumeText) && (
               <button
                 onClick={clearAll}
-                className="text-[11px] font-label px-2 py-1.5 rounded-lg bg-[#111622] border border-[#EF4444]/40 hover:bg-[#EF4444]/20 text-[#EF4444] transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-sm"
+                className="text-[11px] font-label px-3 py-1.5 rounded-lg bg-[#111622] border border-[#EF4444]/40 hover:bg-[#EF4444]/20 text-[#EF4444] transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-sm flex items-center gap-1.5 font-medium"
                 title="Clear All Inputs"
               >
                 ✕ Clear
@@ -1235,9 +1103,9 @@ export default function AppPage() {
                     {/* Segmented Multi-Color Progress Bar */}
                     {(() => {
                       const total = result.tailored.match_analysis.evaluations.length || 1;
-                      const matchedCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "strong_match").length;
-                      const partialCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "partial_match").length;
-                      const missingCount = total - matchedCount - partialCount;
+                      const matchedCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "strong_match" || e.status === "claimed_match").length;
+                      const partialCount = result.tailored.match_analysis.evaluations.filter((e) => e.status === "partial_match" || e.status === "weak_evidence").length;
+                      const missingCount = Math.max(0, total - matchedCount - partialCount);
 
                       const matchedPct = Math.round((matchedCount / total) * 100);
                       const partialPct = Math.round((partialCount / total) * 100);
@@ -1512,21 +1380,24 @@ export default function AppPage() {
                       {result.tailored.match_analysis?.evaluations
                         ?.filter((item) => {
                           if (searchQuery && !item.requirement_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-                          if (diffFilter === "matched") return item.status === "strong_match";
-                          if (diffFilter === "partial") return item.status === "partial_match";
-                          if (diffFilter === "missing") return item.status === "no_evidence" || item.status === "weak_evidence" || item.score === 0.0;
+                          if (diffFilter === "matched") return item.status === "strong_match" || item.status === "claimed_match";
+                          if (diffFilter === "partial") return item.status === "partial_match" || item.status === "weak_evidence";
+                          if (diffFilter === "missing") return item.status === "no_evidence" || item.score === 0.0;
                           return true;
                         })
                         .map((req, i) => {
-                          const isMatched = req.status === "strong_match";
-                          const isPartial = req.status === "partial_match";
+                          const isDemonstrated = req.status === "strong_match";
+                          const isClaimed = req.status === "claimed_match";
+                          const isPartial = req.status === "partial_match" || req.status === "weak_evidence";
 
                           return (
                             <div
                               key={i}
                               className={`p-4 rounded-2xl border transition-all grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-start ${
-                                isMatched
+                                isDemonstrated
                                   ? "bg-[#0C1018] border-[#10B981]/30 hover:border-[#10B981]/60"
+                                  : isClaimed
+                                  ? "bg-[#0C1018] border-[#34D399]/30 hover:border-[#34D399]/60"
                                   : isPartial
                                   ? "bg-[#0C1018] border-[#00F0FF]/30 hover:border-[#00F0FF]/60"
                                   : "bg-[#0C1018] border-[#EF4444]/30 hover:border-[#EF4444]/60"
@@ -1585,17 +1456,21 @@ export default function AppPage() {
                                     Match Verdict:
                                   </span>
                                   <span className={`text-[10px] font-label font-bold px-2.5 py-1 rounded-lg inline-block ${
-                                    isMatched
+                                    isDemonstrated
                                       ? "bg-[#10B981]/20 text-[#34D399] border border-[#10B981]/40"
+                                      : isClaimed
+                                      ? "bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40"
                                       : isPartial
                                       ? "bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/40"
                                       : "bg-[#EF4444]/20 text-[#FCA5A5] border border-[#EF4444]/40"
                                   }`}>
-                                    {isMatched
-                                      ? "✓ DIRECT MATCH (100%)"
+                                    {isDemonstrated
+                                      ? "✓ DEMONSTRATED MATCH (100%)"
+                                      : isClaimed
+                                      ? "✓ CLAIMED SKILL (80%)"
                                       : isPartial
                                       ? "⚡ PARTIAL FIT (60%)"
-                                      : "⚠️ UNEVIDENCED (0%)"}
+                                      : "✕ MISSING (0%)"}
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-[#94A3B8] leading-tight">

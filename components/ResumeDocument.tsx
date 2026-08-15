@@ -62,17 +62,17 @@ const standardStyles = StyleSheet.create({
     lineHeight: 1.28,
     color: "#111827",
   },
-  header: { marginBottom: 8, alignItems: "center", textAlign: "center" },
+  header: { marginBottom: 12, alignItems: "center", textAlign: "center" },
   name: {
-    fontSize: 14.5,
+    fontSize: 15,
     fontWeight: "bold",
-    marginBottom: 3,
+    marginBottom: 6,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     color: "#0F1419",
     textAlign: "center",
   },
-  contact: { fontSize: 7.8, color: "#4B5563", lineHeight: 1.35, textAlign: "center" },
+  contact: { fontSize: 8, color: "#4B5563", lineHeight: 1.4, textAlign: "center" },
   section: { marginBottom: 6 },
   sectionTitle: {
     fontSize: 9.5,
@@ -112,8 +112,8 @@ const sidebarStyles = StyleSheet.create({
   page: { flexDirection: "row", backgroundColor: "#FFFFFF", fontFamily: "ResumeFont" },
   leftSidebar: { width: "32%", backgroundColor: "#1E293B", color: "#FFFFFF", padding: 18, minHeight: "100%" },
   rightMain: { width: "68%", padding: 20, color: "#0F1419" },
-  sidebarName: { fontSize: 13, fontWeight: "bold", textTransform: "uppercase", marginBottom: 4, color: "#FFFFFF" },
-  sidebarContact: { fontSize: 7.5, color: "#94A3B8", lineHeight: 1.35, marginBottom: 10 },
+  sidebarName: { fontSize: 13.5, fontWeight: "bold", textTransform: "uppercase", marginBottom: 6, color: "#FFFFFF" },
+  sidebarContact: { fontSize: 7.5, color: "#94A3B8", lineHeight: 1.4, marginBottom: 12 },
   sidebarSectionTitle: {
     fontSize: 8,
     fontWeight: "bold",
@@ -170,9 +170,9 @@ const executiveStyles = StyleSheet.create({
     borderTopWidth: 4,
     borderTopColor: "#D08C1B",
   },
-  header: { marginBottom: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", paddingBottom: 5 },
-  name: { fontSize: 14.5, fontWeight: "bold", color: "#0F1419", marginBottom: 3 },
-  contact: { fontSize: 7.8, color: "#6B7280", lineHeight: 1.35 },
+  header: { marginBottom: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", paddingBottom: 6 },
+  name: { fontSize: 15, fontWeight: "bold", color: "#0F1419", marginBottom: 6 },
+  contact: { fontSize: 8, color: "#6B7280", lineHeight: 1.4 },
   summaryBox: {
     backgroundColor: "#F9FAFB",
     borderLeftWidth: 3,
@@ -227,9 +227,9 @@ const darkStyles = StyleSheet.create({
     backgroundColor: "#0F1419",
     color: "#E5E7EB",
   },
-  header: { marginBottom: 8, borderBottomWidth: 1, borderBottomColor: "#1F9D6B", paddingBottom: 5 },
-  name: { fontSize: 14, fontWeight: "bold", color: "#FFFFFF", marginBottom: 3 },
-  contact: { fontSize: 7.5, color: "#9CA3AF", lineHeight: 1.35 },
+  header: { marginBottom: 12, borderBottomWidth: 1, borderBottomColor: "#1F9D6B", paddingBottom: 6 },
+  name: { fontSize: 14.5, fontWeight: "bold", color: "#FFFFFF", marginBottom: 6 },
+  contact: { fontSize: 7.8, color: "#9CA3AF", lineHeight: 1.4 },
   section: { marginBottom: 6 },
   sectionTitle: {
     fontSize: 8.8,
@@ -274,9 +274,9 @@ const compactStyles = StyleSheet.create({
     lineHeight: 1.2,
     color: "#111827",
   },
-  header: { marginBottom: 6, borderBottomWidth: 1, borderBottomColor: "#8B5CF6", paddingBottom: 3 },
-  name: { fontSize: 13, fontWeight: "bold", color: "#0F1419", marginBottom: 2 },
-  contact: { fontSize: 7.2, color: "#4B5563", lineHeight: 1.3 },
+  header: { marginBottom: 8, borderBottomWidth: 1, borderBottomColor: "#8B5CF6", paddingBottom: 4 },
+  name: { fontSize: 13.5, fontWeight: "bold", color: "#0F1419", marginBottom: 4.5 },
+  contact: { fontSize: 7.4, color: "#4B5563", lineHeight: 1.35 },
   section: { marginBottom: 4.5 },
   sectionTitle: {
     fontSize: 8.5,
@@ -320,9 +320,9 @@ const academicStyles = StyleSheet.create({
     lineHeight: 1.28,
     color: "#000000",
   },
-  header: { marginBottom: 8, textAlign: "center", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#000000", paddingBottom: 5 },
-  name: { fontSize: 14, fontWeight: "bold", color: "#000000", marginBottom: 3, textAlign: "center" },
-  contact: { fontSize: 7.8, fontStyle: "italic", color: "#333333", lineHeight: 1.35, textAlign: "center" },
+  header: { marginBottom: 12, textAlign: "center", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#000000", paddingBottom: 6 },
+  name: { fontSize: 14.5, fontWeight: "bold", color: "#000000", marginBottom: 6, textAlign: "center" },
+  contact: { fontSize: 8, fontStyle: "italic", color: "#333333", lineHeight: 1.4, textAlign: "center" },
   section: { marginBottom: 6 },
   sectionTitle: {
     fontSize: 9.5,
@@ -494,7 +494,8 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
   }
 
   // Select Stylesheet based on chosen template
-  let styles: any = standardStyles;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let styles: Record<string, any> = standardStyles;
   if (templateId === "executive-leadership") styles = executiveStyles;
   else if (templateId === "dark-cyber") styles = darkStyles;
   else if (templateId === "compact-dense") styles = compactStyles;
@@ -515,7 +516,7 @@ export default function ResumeDocument(props: ResumeDocumentProps) {
         {summary ? (
           <View style={styles.section}>
             {templateId === "executive-leadership" ? (
-              <View style={(styles as typeof executiveStyles).summaryBox}>
+              <View style={executiveStyles.summaryBox}>
                 <Text style={{ fontWeight: "bold", marginBottom: 1 }}>EXECUTIVE SUMMARY</Text>
                 <Text>{summary}</Text>
               </View>

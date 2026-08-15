@@ -131,7 +131,7 @@ const testCases: TestCase[] = [
         certifications: [],
       },
     }),
-    validate: (result, _resume) => {
+    validate: (result) => {
       const zeroBulletEntry = result.rewritten_experience.find(
         (e) => e.company.toLowerCase() === "zerobullet corp"
       );
@@ -185,7 +185,7 @@ const testCases: TestCase[] = [
         certifications: [{ name: "AWS Solutions Architect", issuer: "Amazon" }],
       },
     }),
-    validate: (result, _resume) => {
+    validate: (result) => {
       if (!result.rewritten_experience || result.rewritten_experience.length === 0) {
         return { passed: false, reason: "rewritten_experience is empty — the sole entry should have been rewritten." };
       }
@@ -226,7 +226,7 @@ const testCases: TestCase[] = [
         certifications: [],  // ← empty — must not crash PDF assumptions
       },
     }),
-    validate: (result, _resume) => {
+    validate: (result) => {
       if (!result.rewritten_experience || result.rewritten_experience.length === 0) {
         return { passed: false, reason: "rewritten_experience is empty." };
       }

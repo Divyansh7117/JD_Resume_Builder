@@ -1,6 +1,7 @@
 export type RequirementImportance = "required" | "high" | "medium" | "low" | "preferred";
 export type RequirementCriticality = "hard" | "soft" | "preferred";
-export type MatchStatus = "strong_match" | "partial_match" | "weak_evidence" | "no_evidence";
+export type MatchStatus = "strong_match" | "claimed_match" | "partial_match" | "weak_evidence" | "no_evidence";
+export type EvidenceLevel = "demonstrated" | "claimed" | "partial" | "none";
 export type GapSeverity = "critical" | "moderate" | "minor";
 export type RequirementType = "skill_capability" | "eligibility_constraint";
 
@@ -25,7 +26,7 @@ export interface JDRequirement {
   id: string;
   name: string;
   description: string;
-  category: string; // e.g. "technical_skill", "core_competency", "growth", "analytics", "experimentation", "ai_tech", "leadership", "experience_tenure", "education", "location"
+  category: string; // e.g. "technical_skill", "core_competency", "domain_expertise", "tools_and_tech", "leadership", "experience_tenure", "education", "location"
   requirement_type?: RequirementType;
   importance: RequirementImportance;
   criticality?: RequirementCriticality; // "hard" | "soft" | "preferred"
@@ -96,7 +97,8 @@ export interface RequirementMatchResult {
   criticality: RequirementCriticality;
   weight?: number;
   status: MatchStatus;
-  score: number; // 1.0 (strong), 0.6 (partial), 0.3 (weak), 0.0 (none)
+  evidence_level?: EvidenceLevel;
+  score: number; // 1.0 (demonstrated/strong), 0.8 (claimed), 0.6 (partial), 0.0 (none)
   confidence: number; // 0.0 to 1.0
   evidence_ids: string[]; // Strictly required: IDs of supporting CandidateEvidenceUnits
   evidence: { text: string; source: string; evidence_id: string }[]; // Deterministically resolved from CandidateEvidenceUnits
@@ -120,6 +122,7 @@ export interface AuditTrailEntry {
   criticality: RequirementCriticality;
   evidence_ids: string[];
   status: MatchStatus;
+  evidence_level?: EvidenceLevel;
   score: number;
   weight: number;
   contribution_percent: number;
@@ -164,7 +167,7 @@ export interface MatchAnalysis {
   confidence_score: number; // Evidence-based confidence (0-100)
   confidence_level: "high" | "medium" | "low";
   confidence_reasons: string[];
-  critical_gaps: GapItem[]; // Hard requirements with no_evidence or weak_evidence
+  critical_gaps: GapItem[]; // Hard requirements with no_evidence
   why_not_100: string[]; // Deterministic breakdown explaining score deductions
   total_requirements_count?: number; // Total extracted requirements (capabilities + eligibility)
   scorable_capabilities_count?: number; // Total technical/capability requirements evaluated in score denominator

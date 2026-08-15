@@ -1,6 +1,6 @@
 /**
  * Hybrid Exact & Semantic Tech Matcher
- * Provides canonical normalization, incompatible tech disambiguation, and keyword-stuffing protection.
+ * Provides canonical normalization, alias resolution, and exact token matching.
  */
 
 export const CANONICAL_TECH_MAP: Record<string, string> = {
@@ -37,6 +37,7 @@ export const CANONICAL_TECH_MAP: Record<string, string> = {
   redis: "redis",
   docker: "docker",
   graphql: "graphql",
+  gql: "graphql",
   rest: "rest api",
   "rest api": "rest api",
   "restful api": "rest api",
@@ -46,47 +47,13 @@ export const CANONICAL_TECH_MAP: Record<string, string> = {
   gitlab: "git",
 };
 
-// Incompatible related technologies that must NOT be treated as interchangeable equivalents
-export const INCOMPATIBLE_TECH_PAIRS: [string, string][] = [
-  ["flutter", "react native"],
-  ["flutter", "swift"],
-  ["flutter", "kotlin"],
-  ["react native", "flutter"],
-  ["supabase", "firebase"],
-  ["firebase", "supabase"],
-  ["postgresql", "mongodb"],
-  ["mongodb", "postgresql"],
-  ["postgresql", "mysql"],
-  ["mysql", "mongodb"],
-  ["react", "angular"],
-  ["react", "vue"],
-  ["angular", "react"],
-  ["vue", "react"],
-  ["django", "node.js"],
-  ["fastapi", "spring boot"],
-  ["rust", "go"],
-  ["elixir", "node.js"],
-];
-
 /**
  * Normalizes a technology/skill name to its canonical form if known.
  */
 export function normalizeTechName(name: string): string {
+  if (!name) return "";
   const cleaned = name.toLowerCase().replace(/[^\w\s\.\#\+\-]/g, "").trim();
   return CANONICAL_TECH_MAP[cleaned] || cleaned;
-}
-
-/**
- * Checks if two technology names are known incompatible/non-equivalent pairs.
- */
-export function areTechnologiesIncompatible(techA: string, techB: string): boolean {
-  const normA = normalizeTechName(techA);
-  const normB = normalizeTechName(techB);
-  if (normA === normB) return false;
-
-  return INCOMPATIBLE_TECH_PAIRS.some(
-    ([a, b]) => (normA === a && normB === b) || (normA === b && normB === a)
-  );
 }
 
 /**
@@ -96,6 +63,10 @@ export function checkExactTechMatch(
   requirementName: string,
   candidateText: string
 ): { isMatch: boolean; canonicalName: string } {
+  if (!requirementName || !candidateText) {
+    return { isMatch: false, canonicalName: "" };
+  }
+
   const normReq = normalizeTechName(requirementName);
   const words = candidateText.toLowerCase().split(/[^\w\.\#\+\-]+/).filter(Boolean);
 
@@ -114,43 +85,3 @@ export function checkExactTechMatch(
   return { isMatch: false, canonicalName: normReq };
 }
 
-/**
- * Detects if the candidate's evidence consists purely of related generic tools (e.g. SQL, Python, Jira)
- * rather than the specific required technology (e.g. PostgreSQL, Supabase, Flutter, Git).
- */
-export function isGenericSkillForSpecificTech(requirementName: string, evidenceText: string): boolean {
-  const reqLower = requirementName.toLowerCase();
-  const evLower = evidenceText.toLowerCase();
-
-  // Specific PostgreSQL requirement check
-  if ((reqLower.includes("postgres") || reqLower.includes("postgresql")) && !evLower.includes("postgres")) {
-    return true;
-  }
-
-  // Specific Supabase requirement check
-  if (reqLower.includes("supabase") && !evLower.includes("supabase")) {
-    return true;
-  }
-
-  // Specific Flutter requirement check
-  if (reqLower.includes("flutter") && !evLower.includes("flutter")) {
-    return true;
-  }
-
-  // Specific Firebase requirement check
-  if (reqLower.includes("firebase") && !evLower.includes("firebase")) {
-    return true;
-  }
-
-  // Specific Git/GitHub requirement check
-  if ((reqLower.includes("git") || reqLower.includes("github")) && !evLower.includes("git")) {
-    return true;
-  }
-
-  // Specific REST API requirement check
-  if ((reqLower.includes("rest") || reqLower.includes("api architecture")) && !evLower.includes("rest") && !evLower.includes("api") && !evLower.includes("endpoint")) {
-    return true;
-  }
-
-  return false;
-}

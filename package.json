@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:engine": "tsx scripts/test-engine-comprehensive.ts",
+    "test:blackbox": "tsx scripts/test-blackbox-validation.ts",
+    "test:stress": "tsx scripts/test-stress-distribution.ts",
+    "test:education": "tsx scripts/test-education-policy.ts",
+    "test:all": "tsx scripts/test-engine-comprehensive.ts && tsx scripts/test-education-policy.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.7.4",

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -34,7 +34,6 @@ const FAQS = [
 ];
 
 export default function FAQPage() {
-  const shouldReduceMotion = useReducedMotion();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const toggle = (idx: number) => {

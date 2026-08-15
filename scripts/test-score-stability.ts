@@ -3,7 +3,7 @@ dotenv.config({ path: ".env.local" });
 
 import { runEvaluationPipeline } from "../lib/pipeline";
 import { diffPipelineSnapshots, PipelineDebugSnapshot } from "../lib/debugSnapshot";
-import { CANONICAL_MODEL, CANONICAL_EMBEDDING_MODEL, getLLMCacheStats, clearLLMResponseCache } from "../lib/llm";
+import { getLLMCacheStats, CANONICAL_MODEL, CANONICAL_EMBEDDING_MODEL } from "../lib/llm";
 import { PIPELINE_VERSION, clearPipelineCache } from "../lib/cache";
 
 const TOING_JD_TEXT = `Job Title: Product Manager II – Storefront & Growth (TOING)
@@ -18,19 +18,23 @@ Key Requirements:
 • 4-5 years in Product Management owning B2C products.
 • Proven track record owning conversion funnels, activation, engagement, and retention.
 • Experience designing rapid A/B experiments and cohort-level retention analysis.
-• Expertise with Product Analytics tools (SQL, Power BI, dashboards).
-• Understanding of AI-powered product design and personalization.
-• Strong storytelling and executive communication.`;
+• Deep understanding of customer journey mapping and product analytics.
+• Cross-functional leadership across engineering, design, and ops.
 
-const DIVYANSH_RESUME_TEXT = `Divyansh Agarwal
-Full Stack Developer · React / Next.js / Node.js · Open to Opportunities
-New Delhi, India • +91-9205216028 • divyanshagarwal.work7117@gmail.com
-linkedin.com/in/divyansh-agarwal7117 • github.com/Divyansh7117 • divyansh-agarwal-portfolio.vercel.app
+Required Skills:
+• B2C Product Management
+• Conversion Rate Optimization (CRO)
+• Cohort Retention Analysis
+• A/B Testing & Experimentation
+• SQL & Product Analytics
+• Cross-functional Team Leadership`;
+
+const SAMPLE_RESUME_TEXT = `Alex Morgan
+Full Stack Developer · React / Next.js / Node.js
+San Francisco, CA • (555) 019-2834 • alex.morgan@example.com
+linkedin.com/in/alexmorgan • github.com/alexmorgan
 
 SUMMARY
-Full Stack Developer and B.Tech CSE (Data Science) student with production-level experience shipping real applications — led end-to-end development of a social platform with 500+ live users, delivered a freelance B2B platform, and built a cross-platform React Native dating app spanning JWT authentication, REST APIs, real-time WebSockets, and optimized MongoDB pipelines. Currently expanding into Python, Machine Learning, and Deep Learning to build AI-native features into production software.
-
-EXPERIENCE
 Software Engineer Intern Oct 2025 – Present
 Xoodrip · Remote — Building GrowIn Bharat, a live social media platform with 500+ real users
 ● Engineered end-to-end full-stack architecture as sole developer; owned feature development, CI/CD deployment pipeline, and release reviews.
@@ -98,7 +102,7 @@ async function testRepeatability(): Promise<boolean> {
   for (let run = 1; run <= NUM_RUNS; run++) {
     console.log(`▶ Iteration ${run}/${NUM_RUNS}...`);
     const t0 = Date.now();
-    const result = await runEvaluationPipeline(TOING_JD_TEXT, DIVYANSH_RESUME_TEXT);
+    const result = await runEvaluationPipeline(TOING_JD_TEXT, SAMPLE_RESUME_TEXT);
     const elapsed = Date.now() - t0;
 
     snapshots.push(result.snapshot);
@@ -138,10 +142,10 @@ async function testRepeatability(): Promise<boolean> {
 
 async function testFirstRunCorrectness(): Promise<boolean> {
   console.log("\n═════════════════════════════════════════════════════════════════");
-  console.log("TEST B: FIRST-RUN CORRECTNESS INSPECTION (Divyansh + TOING)");
+  console.log("TEST B: FIRST-RUN CORRECTNESS INSPECTION");
   console.log("═════════════════════════════════════════════════════════════════\n");
 
-  const result = await runEvaluationPipeline(TOING_JD_TEXT, DIVYANSH_RESUME_TEXT);
+  const result = await runEvaluationPipeline(TOING_JD_TEXT, SAMPLE_RESUME_TEXT);
   const analysis = result.tailored.match_analysis;
 
   if (!analysis) {
@@ -243,15 +247,15 @@ async function testFreshCacheVariance(): Promise<boolean> {
 
     try {
       const t0 = Date.now();
-      const result = await runEvaluationPipeline(TOING_JD_TEXT, DIVYANSH_RESUME_TEXT);
+      const result = await runEvaluationPipeline(TOING_JD_TEXT, SAMPLE_RESUME_TEXT);
       const elapsed = Date.now() - t0;
 
       freshScores.push(result.snapshot.scoring_breakdown.final_match_score);
       freshSnapshots.push(result.snapshot);
 
       console.log(`  ${elapsed}ms | Score=${result.snapshot.scoring_breakdown.final_match_score}% | Reqs=${result.snapshot.extracted_requirements.length} | Denom=${result.snapshot.scoring_breakdown.total_weighted_denominator}\n`);
-    } catch (err: any) {
-      if (err.name === "LLMRateLimitError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "LLMRateLimitError") {
         console.warn(`  ⚠ Run ${run} hit rate limit: ${err.message}`);
         console.warn("  Skipping remaining fresh runs due to quota exhaustion.\n");
         break;

@@ -505,7 +505,7 @@ export default function TemplatesPage() {
                       {active.sampleData.name}
                     </h3>
                     <p className="text-xs text-[#1F9D6B] font-mono mt-0.5">
-                      // {active.sampleData.title}
+                      {"// "}{active.sampleData.title}
                     </p>
                   </div>
                   <span className="text-[10px] text-[#6B7280]">

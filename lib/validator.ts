@@ -1,4 +1,4 @@
-import { ResumeData, TailoredOutput } from "../types";
+import { ResumeData, TailoredOutput, MatchAnalysis } from "../types";
 
 /**
  * Extracts distinct factual tokens (metrics, currencies, percentages, years, dates) from text.
@@ -41,7 +41,6 @@ export function detectFabricatedClaims(
   targetClaimText: string
 ): { valid: boolean; violations: string[] } {
   const violations: string[] = [];
-  const sourceTokens = extractFactualTokens(sourceEvidenceText);
   const targetTokens = extractFactualTokens(targetClaimText);
   const sourceLower = sourceEvidenceText.toLowerCase();
 
@@ -177,3 +176,55 @@ export function validateNoFabrication(
     issues,
   };
 }
+
+/**
+ * Validates internal consistency invariants of a MatchAnalysis result.
+ */
+export function validateMatchConsistency(
+  analysis: MatchAnalysis,
+  _resume?: ResumeData
+): { valid: boolean; issues: string[] } {
+  void _resume;
+  const issues: string[] = [];
+
+  const evaluations = analysis.evaluations || [];
+  const matched = analysis.matched_requirements || [];
+  const partial = analysis.partial_requirements || [];
+  const missing = analysis.missing_requirements || [];
+
+  // Invariant 1: Matched + Partial + Missing === Total Evaluated
+  if (matched.length + partial.length + missing.length !== evaluations.length) {
+    issues.push(
+      `Partition mismatch: Matched (${matched.length}) + Partial (${partial.length}) + Missing (${missing.length}) = ${matched.length + partial.length + missing.length}, but Total Evaluations = ${evaluations.length}`
+    );
+  }
+
+  // Invariant 2: Evidence vs Verdict consistency
+  for (const ev of evaluations) {
+    const hasEvidence = ev.evidence && ev.evidence.length > 0;
+
+    if (hasEvidence && ev.status === "no_evidence") {
+      issues.push(
+        `Contradiction in requirement '${ev.requirement_name}': Evidence is present (${ev.evidence.length} items) but verdict is 'no_evidence'.`
+      );
+    }
+
+    if (hasEvidence && ev.score === 0.0 && ev.status !== "no_evidence") {
+      issues.push(
+        `Contradiction in requirement '${ev.requirement_name}': Evidence is present but score is 0.0 with status '${ev.status}'.`
+      );
+    }
+
+    if (!hasEvidence && (ev.status === "strong_match" || ev.status === "claimed_match")) {
+      issues.push(
+        `Missing proof for requirement '${ev.requirement_name}': Status is '${ev.status}' but no verified evidence units are attached.`
+      );
+    }
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
