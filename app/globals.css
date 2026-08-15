@@ -25,15 +25,20 @@
 /* ═══════════════════════════════════════════════
    BASE — DEEP SPACE DARK PAGE & AMBIENT EFFECTS
    ═══════════════════════════════════════════════ */
-html, body {
-  height: 100%;
+html {
+  min-height: 100%;
   background: #090D14;
   color: #F8FAFC;
+  scroll-behavior: smooth;
 }
 
 body {
+  min-height: 100%;
+  background: #090D14;
+  color: #F8FAFC;
   font-family: var(--font-body), "Inter", system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Subtle High-Tech Vector Grid Overlay */

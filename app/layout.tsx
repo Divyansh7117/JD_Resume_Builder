@@ -24,6 +24,11 @@ export const metadata: Metadata = {
   title: "JD → Resume | Tailor your resume to any job description",
   description:
     "Paste a job description and your resume. Get a tailored version with matched skills, gap analysis, and a downloadable PDF — powered by AI.",
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png", type: "image/png" }],
+    shortcut: ["/logo.png"],
+  },
 };
 
 export const viewport: Viewport = {

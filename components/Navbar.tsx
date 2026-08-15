@@ -25,11 +25,11 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#0F1419]/90 backdrop-blur-md border-b border-[#1C2333]">
+    <header className="sticky top-0 z-50 w-full bg-[#070A0F]/95 backdrop-blur-xl border-b border-[#1C2333] shadow-md shadow-black/30 transition-all">
       {/* Bottom glowing border accent */}
       <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#3654FF]/40 to-transparent" />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 h-16 sm:h-18 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-3.5 sm:py-4 flex items-center justify-between min-h-[64px] sm:min-h-[72px]">
         {/* Left: Brand Logo */}
         <Link href="/" className="flex items-center gap-2 group max-w-[200px] sm:max-w-none shrink-0">
           <Logo />
