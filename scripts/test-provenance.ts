@@ -9,22 +9,22 @@ async function runProvenanceTests() {
   console.log("║           IMMUTABLE PROVENANCE & ANTI-FABRICATION SUITE         ║");
   console.log("╚═════════════════════════════════════════════════════════════════╝\n");
 
-  const sourceEvidence = `Built and scaled PW Store (₹200Cr+ revenue, 3,000+ SKUs, 50K DAU).
-Owned integration of PW Store’s Order Management System (OMS) end-to-end.
+  const sourceEvidence = `Built and scaled RetailStream Store ($20M+ revenue, 3,000+ SKUs, 50K DAU).
+Owned integration of RetailStream Store Order Management System (OMS) end-to-end.
 Senior Business Analyst from Jun 2021 – Mar 2022.`;
 
   const dummyResume: ResumeData = {
-    contact: { name: "Rachit Agarwal", email: "test@example.com", phone: "123", location: "New Delhi", links: [] },
+    contact: { name: "Alex Morgan", email: "alex.morgan@example.com", phone: "555-0199", location: "San Francisco, CA", links: [] },
     summary: "Product leader with 5+ years of B2C consumer product experience.",
     sections: {
       experience: [
         {
-          company: "PhysicsWallah",
+          company: "RetailStream Inc",
           title: "Product Owner",
           dates: "Mar 2022 – Jun 2024",
           bullets: [
-            "Built and scaled PW Store (₹200Cr+ revenue, 3,000+ SKUs, 50K DAU).",
-            "Owned integration of PW Store’s Order Management System (OMS) end-to-end.",
+            "Built and scaled RetailStream Store ($20M+ revenue, 3,000+ SKUs, 50K DAU).",
+            "Owned integration of RetailStream Store Order Management System (OMS) end-to-end.",
           ],
         },
       ],
@@ -40,10 +40,10 @@ Senior Business Analyst from Jun 2021 – Mar 2022.`;
 
   // Test 1: Fabricated Revenue Rejection
   total++;
-  console.log("▶ Test 1: Fabricated Currency/Revenue Rejection (₹1200Cr+ vs ₹200Cr+)...");
-  const test1 = detectFabricatedClaims(sourceEvidence, "Scaled storefront driving ₹1200Cr+ revenue.");
-  if (!test1.valid && test1.violations.some((v) => v.includes("1200cr"))) {
-    console.log("  ✅ [PASS] Successfully detected and rejected fabricated revenue figure (₹1200Cr+).");
+  console.log("▶ Test 1: Fabricated Currency/Revenue Rejection ($120M+ vs $20M+)...");
+  const test1 = detectFabricatedClaims(sourceEvidence, "Scaled storefront driving $120M+ revenue.");
+  if (!test1.valid && test1.violations.some((v) => v.includes("120m"))) {
+    console.log("  ✅ [PASS] Successfully detected and rejected fabricated revenue figure ($120M+).");
     passed++;
   } else {
     console.error("  ❌ [FAIL] Allowed fabricated revenue figure:", test1);
@@ -71,26 +71,32 @@ Senior Business Analyst from Jun 2021 – Mar 2022.`;
     console.error("  ❌ [FAIL] Allowed fabricated percentage:", test3);
   }
 
-  // Test 4: End-to-end validateNoFabrication on TailoredOutput
+  // Test 4: End-to-end validateNoFabrication on TailoredOutput with hallucinated bullets and ungrounded companies
   total++;
-  console.log("▶ Test 4: End-to-end validateNoFabrication rejection on hallucinated bullet...");
+  console.log("▶ Test 4: End-to-end validateNoFabrication rejection on hallucinated bullet and ungrounded company...");
   const badTailoredOutput: TailoredOutput = {
     match_score: 90,
     matched_skills: ["Product Management"],
     missing_skills: [],
-    rewritten_summary: "Product leader driving ₹1200Cr+ offline revenue.", // Hallucinated ₹1200Cr
+    rewritten_summary: "Product leader driving $120M+ offline revenue.", // Hallucinated $120M
     rewritten_experience: [
       {
-        company: "PhysicsWallah",
+        company: "RetailStream Inc",
         title: "Product Owner",
         dates: "Mar 2022 – Jun 2024",
         bullets: [
-          "Built PW Store scaling to ₹200Cr+ revenue.",
+          "Built RetailStream Store scaling to $20M+ revenue.",
           "Deployed real-time seat allocation systems across 25+ cities.", // Hallucinated 25+
         ],
       },
+      {
+        company: "FabricatedCorp LLC", // Invented company
+        title: "Lead Developer",
+        dates: "2020 - 2021",
+        bullets: ["Engineered cloud solutions."],
+      },
     ],
-    rewritten_skills: ["Product Management"],
+    rewritten_skills: ["Product Management", "Python"], // Invented skill
     used_fallback: false,
   };
 
@@ -113,12 +119,12 @@ Senior Business Analyst from Jun 2021 – Mar 2022.`;
     rewritten_summary: "Product leader with 5+ years of B2C consumer product experience.",
     rewritten_experience: [
       {
-        company: "PhysicsWallah",
+        company: "RetailStream Inc",
         title: "Product Owner",
         dates: "Mar 2022 – Jun 2024",
         bullets: [
-          "Scaled PW Store from 0→1 to ₹200Cr+ annual revenue with 3,000+ SKUs.",
-          "Orchestrated cross-functional integration of PW Store’s Order Management System (OMS) end-to-end.",
+          "Scaled RetailStream Store from 0→1 to $20M+ annual revenue with 3,000+ SKUs.",
+          "Orchestrated cross-functional integration of RetailStream Store Order Management System (OMS) end-to-end.",
         ],
       },
     ],
